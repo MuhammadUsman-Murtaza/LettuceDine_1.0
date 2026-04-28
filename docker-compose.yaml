@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgis/postgis:17-master
+    container_name: lettucedine-db
+    restart: always
+    shm_size: 128mb
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin1234
+      POSTGRES_DB: lettucedine-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d lettucedine-db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    container_name: lettucedine-api
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://admin:admin1234@db:5432/lettucedine-db
+    volumes:
+      - ./backend:/app             # Syncs your code
+      - /app/node_modules
+    command: npm run dev
+    depends_on:
+      db:
+        condition: service_healthy # Wait for DB to be ready, not just "started"
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
