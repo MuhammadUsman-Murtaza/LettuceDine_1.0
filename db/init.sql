@@ -1,87 +1,107 @@
--- 1. Enable Extensions
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- 0. Define ENUMs for categorical data
+CREATE TYPE order_status AS ENUM ('pending', 'placed', 'preparing', 'out_for_delivery', 'delivered', 'cancelled');
+CREATE TYPE payment_mode AS ENUM ('credit_card', 'paypal', 'cash', 'crypto');
+CREATE TYPE driver_status AS ENUM ('available', 'busy', 'offline');
+CREATE TYPE address_type AS ENUM ('home', 'work', 'other');
 
--- 2. Create Tables with Named Constraints
-
--- Customer Entity
-CREATE TABLE customers (
-    customer_id BIGINT GENERATED ALWAYS AS IDENTITY,
-    name TEXT NOT NULL,
-    phone_num VARCHAR(20),
-    email TEXT,
-    
-    CONSTRAINT pk_customers PRIMARY KEY (customer_id),
-    CONSTRAINT uq_customer_email UNIQUE (email),
-    CONSTRAINT chk_phone_format CHECK (phone_num ~ '^[0-9+ ]+$')
-);
-
--- Address Entity
-CREATE TABLE addresses (
-    address_id BIGINT GENERATED ALWAYS AS IDENTITY,
-    customer_id BIGINT,
-    street TEXT NOT NULL,
-    city TEXT NOT NULL,
-    zip_code VARCHAR(10),
-    label VARCHAR(50),
-    location GEOGRAPHY(POINT, 4326),
-
-    CONSTRAINT pk_addresses PRIMARY KEY (address_id),
-    CONSTRAINT fk_address_customer FOREIGN KEY (customer_id) 
-        REFERENCES customers(customer_id) ON DELETE CASCADE
-);
-
--- Delivery Driver Entity
-CREATE TABLE delivery_drivers (
-    driver_id BIGINT GENERATED ALWAYS AS IDENTITY,
-    name TEXT NOT NULL,
-    contact VARCHAR(20),
-    vehicle_type TEXT,
-    rating NUMERIC(2, 1),
-
-    CONSTRAINT pk_delivery_drivers PRIMARY KEY (driver_id),
-    CONSTRAINT chk_driver_rating_range CHECK (rating >= 0 AND rating <= 5.0)
-);
-
--- Restaurants Entity
+-- 1. Restaurants (Updated with Affordability)
 CREATE TABLE restaurants (
-    id BIGINT GENERATED ALWAYS AS IDENTITY,
-    name TEXT NOT NULL,
-    location GEOGRAPHY(POINT, 4326) NOT NULL,
-    rating NUMERIC(2, 1),
-    affordability SMALLINT,
-
-    CONSTRAINT pk_restaurants PRIMARY KEY (id),
-    CONSTRAINT chk_restaurant_rating_range CHECK (rating >= 0 AND rating <= 5.0),
-    CONSTRAINT chk_restaurant_affordability_range CHECK (affordability >= 1 AND affordability <= 3)
+    restaurant_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    cuisine_type VARCHAR(50),
+    phone_number VARCHAR(20) CHECK (phone_number ~ '^\+?[0-9]{7,15}$'),
+    affordability SMALLINT NOT NULL CHECK (affordability IN (1, 2, 3)), -- 1=$, 2=$$, 3=$$$
+    street_address VARCHAR(255) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    province VARCHAR(50),
+    location POINT,
+    rating DECIMAL(2,1)
 );
 
--- Menu Entity
-CREATE TABLE menus (
-    menu_id BIGINT GENERATED ALWAYS AS IDENTITY,
-    restaurant_id BIGINT,
-    item_name TEXT NOT NULL,
-    price NUMERIC(10, 2) NOT NULL,
-
-    CONSTRAINT pk_menus PRIMARY KEY (menu_id),
-    CONSTRAINT fk_menu_restaurant FOREIGN KEY (restaurant_id) 
-        REFERENCES restaurants(id) ON DELETE CASCADE,
-    CONSTRAINT chk_menu_price_positive CHECK (price > 0)
+-- 2. Other Independent Tables
+CREATE TABLE customers (
+    customer_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    phone_number VARCHAR(20) CHECK (phone_number ~ '^\+?[0-9]{7,15}$'),
+    password_hash VARCHAR(255) NOT NULL, 
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Order Entity
+CREATE TABLE delivery_drivers (
+    driver_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    vehicle_type VARCHAR(30),
+    phone_number VARCHAR(20) NOT NULL CHECK (phone_number ~ '^\+?[0-9]{7,15}$'),
+    current_status driver_status DEFAULT 'offline'
+);
+
+CREATE TABLE coupons (
+    coupon_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    discount_percentage DECIMAL(5,2) NOT NULL,
+    expiry_date DATE NOT NULL
+);
+
+-- 3. Dependent Tables
+CREATE TABLE customer_addresses (
+    address_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    customer_id INT REFERENCES customers(customer_id) ON DELETE CASCADE,
+    street VARCHAR(255) NOT NULL,
+    city VARCHAR(100) NOT NULL,
+    province VARCHAR(50),
+    zip_code VARCHAR(10) NOT NULL,
+    location POINT,
+    label address_type DEFAULT 'home'
+);
+
+CREATE TABLE menu (
+    menu_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    restaurant_id INT REFERENCES restaurants(restaurant_id) ON DELETE CASCADE,
+    item_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price MONEY NOT NULL
+);
+
+-- 4. Transactional Tables
 CREATE TABLE orders (
-    order_id BIGINT GENERATED ALWAYS AS IDENTITY,
-    customer_id BIGINT,
-    restaurant_id BIGINT,
-    total_amount NUMERIC(10, 2) NOT NULL,
-    status TEXT DEFAULT 'Pending',
-
-    CONSTRAINT pk_orders PRIMARY KEY (order_id),
-    CONSTRAINT fk_order_customer FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
-    CONSTRAINT fk_order_restaurant FOREIGN KEY (restaurant_id) REFERENCES restaurants(id),
-    CONSTRAINT chk_order_status_values CHECK (status IN ('Pending', 'Preparing', 'On the Way', 'Delivered', 'Cancelled')),
-    CONSTRAINT chk_order_total_positive CHECK (total_amount >= 0)
+    order_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    customer_id INT REFERENCES customers(customer_id),
+    delivery_address_id INT REFERENCES customer_addresses(address_id),
+    restaurant_id INT REFERENCES restaurants(restaurant_id),
+    driver_id INT REFERENCES delivery_drivers(driver_id),
+    driver_contact_at_order VARCHAR(20) CHECK (driver_contact_at_order ~ '^\+?[0-9]{7,15}$'),
+    coupon_id INT REFERENCES coupons(coupon_id),
+    total_amount MONEY NOT NULL,
+    order_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status order_status DEFAULT 'pending'
+    special_instructions TEXT
 );
 
--- 3. Create Indexes
-CREATE INDEX idx_restaurants_geo ON restaurants USING GIST (location);
+CREATE TABLE order_items (
+    order_item_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_id INT REFERENCES orders(order_id) ON DELETE CASCADE,
+    menu_id INT REFERENCES menu(menu_id),
+    quantity INT NOT NULL DEFAULT 1,
+    subtotal_price MONEY NOT NULL -- Frozen price at time of purchase
+);
+
+CREATE TABLE payments (
+    payment_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_id INT UNIQUE REFERENCES orders(order_id),
+    payment_method payment_mode NOT NULL,
+    payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    amount MONEY NOT NULL
+);
+
+CREATE TABLE reviews (
+    review_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    customer_id INT REFERENCES customers(customer_id),
+    order_id INT UNIQUE REFERENCES orders(order_id),
+    restaurant_id INT REFERENCES restaurants(restaurant_id),
+    rating INT CHECK (rating >= 1 AND rating <= 5),
+    comment TEXT,
+    review_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
