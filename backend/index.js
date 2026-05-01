@@ -279,7 +279,7 @@ app.post('/orders', async (req, res) => {
          special_instructions, coupon_id, status)
       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
       RETURNING order_id
-    `, [customer_id, restaurant_id, delivery_address_id, totalAmount, special_instructions, coupon_id || null]);
+    `, [customer_id, restaurant_id, delivery_address_id, finalTotal, special_instructions, coupon_id || null]);
 
     const order_id = orderRes.rows[0].order_id;
 

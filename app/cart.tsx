@@ -17,35 +17,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PAYMENT_METHODS = ['Cash', 'Card', 'JazzCash', 'EasyPaisa'];
 
+interface Address {
+  address_id: number;
+  street: string;
+  city: string;
+  label: string;
+}
+
 export default function CartScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ restaurantId: string; restaurantName: string; cartDetails: string }>();
 
   const [customerId, setCustomerId] = useState<string | null>(null);
-  const [coupon, setCoupon] = useState('');
-  const [addresses, setAddresses] = useState<any[]>([]);
+  const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+  const [coupon, setCoupon] = useState('');
 
   useEffect(() => {
     AsyncStorage.getItem('CUSTOMER_ID').then(id => {
       if (id) {
         setCustomerId(id);
+        fetch(`${BASE_URL}/customers/${id}/addresses`)
+          .then(res => res.json())
+          .then((data: Address[]) => {
+            setAddresses(data);
+            if (data.length > 0) setSelectedAddressId(data[0].address_id);
+          })
+          .catch(console.error);
       } else {
         router.replace('/login' as any);
       }
     });
   }, []);
-
-  useEffect(() => {
-    if (!customerId) return;
-    fetch(`${BASE_URL}/customers/${customerId}/addresses`)
-      .then(res => res.json())
-      .then(data => {
-        setAddresses(data);
-        if (data.length > 0) setSelectedAddressId(data[0].address_id);
-      })
-      .catch(console.error);
-  }, [customerId]);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponId, setCouponId] = useState<number | null>(null);
@@ -82,7 +85,7 @@ export default function CartScreen() {
 
   const handlePlaceOrder = async () => {
     if (!selectedAddressId) {
-      Alert.alert('Address Required', 'Please select a delivery address or add one in your profile.');
+      Alert.alert('Address Required', 'Please select a delivery address.');
       return;
     }
     setPlacing(true);
@@ -154,25 +157,19 @@ export default function CartScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
           {addresses.length === 0 ? (
-            <Text style={[styles.addressText, { padding: 10, color: Colors.gray }]}>No addresses found. Please add one in your Profile.</Text>
+            <Text style={{ color: Colors.gray, fontStyle: 'italic' }}>No addresses found. Please add one in your Profile.</Text>
           ) : (
-            addresses.map(a => (
+            addresses.map(addr => (
               <TouchableOpacity
-                key={a.address_id}
-                style={[
-                  styles.addressCard,
-                  { marginBottom: 8 },
-                  selectedAddressId === a.address_id && { borderColor: Colors.greenForest, borderWidth: 2 }
-                ]}
-                onPress={() => setSelectedAddressId(a.address_id)}>
-                <IconLocationPin size={18} color={selectedAddressId === a.address_id ? Colors.greenForest : Colors.gray} />
+                key={addr.address_id}
+                style={[styles.addressCard, selectedAddressId === addr.address_id && { borderColor: Colors.greenForest, borderWidth: 2 }]}
+                onPress={() => setSelectedAddressId(addr.address_id)}>
+                <IconLocationPin size={18} color={selectedAddressId === addr.address_id ? Colors.greenForest : Colors.gray} />
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontWeight: '700', fontSize: 13, color: Colors.charcoal, textTransform: 'capitalize' }}>
-                    {a.label || 'Address'}
-                  </Text>
-                  <Text style={styles.addressText}>{a.street}, {a.city}</Text>
+                  <Text style={[styles.addressText, { fontWeight: selectedAddressId === addr.address_id ? '700' : '400' }]}>{addr.street}</Text>
+                  <Text style={{ fontSize: 12, color: Colors.gray }}>{addr.city} • {addr.label.toUpperCase()}</Text>
                 </View>
-                {selectedAddressId === a.address_id && <Ionicons name="checkmark-circle" size={20} color={Colors.greenForest} />}
+                {selectedAddressId === addr.address_id && <Ionicons name="checkmark-circle" size={20} color={Colors.greenForest} />}
               </TouchableOpacity>
             ))
           )}
