@@ -16,7 +16,7 @@ const ANDROID_URL = `http://${debuggerHost}:3000`;
 const BASE_URL = Platform.OS === 'android' ? ANDROID_URL : 'http://localhost:3000';
 
 interface Restaurant {
-  id: number;
+  restaurant_id: number;
   name: string;
   rating: number | null;
   affordability: string;
@@ -48,7 +48,7 @@ const RestaurantCard = ({ item, onPress, index }: { item: Restaurant; onPress: (
             <Text style={styles.bannerEmoji}>🍽️</Text>
           </View>
           <View style={styles.ratingPill}>
-            <Text style={styles.ratingPillText}>⭐ {item.rating?.toFixed(1) ?? 'N/A'}</Text>
+            <Text style={styles.ratingPillText}>⭐ {item.rating ? Number(item.rating).toFixed(1) : 'N/A'}</Text>
           </View>
         </View>
 
@@ -163,7 +163,7 @@ export default function HomeScreen() {
       {/* List */}
       <FlatList
         data={filtered}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => item.restaurant_id.toString()}
         renderItem={({ item, index }) => (
           <RestaurantCard
             item={item}
