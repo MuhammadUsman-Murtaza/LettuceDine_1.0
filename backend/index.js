@@ -203,14 +203,16 @@ app.post('/orders', async (req, res) => {
     special_instructions,
     coupon_id,
     payment_method, // ENUM: 'credit_card', 'paypal', etc.[cite: 1]
-    items           // [{ menu_id, quantity, unit_price }]
+    items,          // [{ menu_id, quantity, unit_price }]
+    total_amount    // Optional: Frontend computed total
   } = req.body;
 
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
-    const totalAmount = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const calculatedAmount = items.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const finalTotal = total_amount !== undefined ? total_amount : calculatedAmount;
 
     // 1. Create order first[cite: 1]
     const orderRes = await client.query(`
@@ -219,7 +221,7 @@ app.post('/orders', async (req, res) => {
          special_instructions, coupon_id, status)
       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
       RETURNING order_id
-    `, [customer_id, restaurant_id, delivery_address_id, totalAmount, special_instructions, coupon_id || null]);
+    `, [customer_id, restaurant_id, delivery_address_id, finalTotal, special_instructions, coupon_id || null]);
     
     const order_id = orderRes.rows[0].order_id;
 
@@ -236,10 +238,10 @@ app.post('/orders', async (req, res) => {
       INSERT INTO payments (order_id, customer_id, payment_method, amount, status)
       VALUES ($1, $2, $3, $4, 'pending')
       RETURNING payment_id
-    `, [order_id, customer_id, payment_method, totalAmount]);
+    `, [order_id, customer_id, payment_method, finalTotal]);
 
     await client.query('COMMIT');
-    res.status(201).json({ order_id, payment_id: payRes.rows[0].payment_id, total_amount: totalAmount });
+    res.status(201).json({ order_id, payment_id: payRes.rows[0].payment_id, total_amount: finalTotal });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(err);

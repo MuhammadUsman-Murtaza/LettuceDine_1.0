@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, ActivityIndicator, StyleSheet,
-  Platform, TextInput, SafeAreaView, TouchableOpacity,
+  Platform, TextInput, TouchableOpacity,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -168,7 +169,7 @@ export default function HomeScreen() {
           <RestaurantCard
             item={item}
             index={index}
-            onPress={() => router.push({ pathname: '/restaurant/[id]', params: { id: item.id, name: item.name } } as any)}
+            onPress={() => router.push({ pathname: '/restaurant/[id]', params: { id: item.restaurant_id, name: item.name } } as any)}
           />
         )}
         ListHeaderComponent={
