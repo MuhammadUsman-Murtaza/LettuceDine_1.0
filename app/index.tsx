@@ -3,9 +3,23 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function GatewayScreen() {
   const router = useRouter();
+
+  React.useEffect(() => {
+    checkLogin();
+  }, []);
+
+  const checkLogin = async () => {
+    const role = await AsyncStorage.getItem('ROLE');
+    if (role === 'vendor') {
+      router.replace('/(vendor)/dashboard');
+    } else if (role === 'customer') {
+      router.replace('/(customer)/(tabs)');
+    }
+  };
 
   return (
     <View style={styles.container}>
