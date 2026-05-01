@@ -39,18 +39,32 @@ app.post('/auth/login/customer', async (req, res) => {
 });
 
 app.post('/auth/login/vendor', async (req, res) => {
-  // Vendors don't have passwords in the current DB schema, so we authenticate by name & phone
-  const { name, phone_number } = req.body;
+  const { email, password } = req.body;
   try {
     const result = await pool.query(
-      `SELECT restaurant_id, name, cuisine_type, phone_number 
-       FROM restaurants WHERE name = $1 AND phone_number = $2`,
-      [name, phone_number]
+      `SELECT vendor_id, first_name, last_name, email, phone_number 
+       FROM vendors WHERE email = $1 AND password_hash = $2`,
+      [email, password]
     );
     if (result.rows.length === 0) {
-      return res.status(401).json({ error: 'Invalid name or phone number' });
+      return res.status(401).json({ error: 'Invalid email or password' });
     }
     res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET all restaurants owned by a specific vendor
+app.get('/vendors/:id/restaurants', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT restaurant_id, name, cuisine_type, rating, city
+      FROM restaurants 
+      WHERE vendor_id = $1
+    `, [req.params.id]);
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
@@ -279,7 +293,7 @@ app.post('/orders', async (req, res) => {
          special_instructions, coupon_id, status)
       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
       RETURNING order_id
-    `, [customer_id, restaurant_id, delivery_address_id, totalAmount, special_instructions, coupon_id || null]);
+    `, [customer_id, restaurant_id, delivery_address_id, finalTotal, special_instructions, coupon_id || null]);
 
     const order_id = orderRes.rows[0].order_id;
 
@@ -545,6 +559,28 @@ app.patch('/orders/:id/status', async (req, res) => {
     `, [status, req.params.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
     res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// GET all orders for a specific restaurant (Vendor Side)
+app.get('/restaurants/:id/orders', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        o.order_id, o.order_date, o.total_amount, o.status, 
+        o.special_instructions,
+        c.first_name, c.last_name,
+        ca.street, ca.city
+      FROM orders o
+      JOIN customers c ON c.customer_id = o.customer_id
+      LEFT JOIN customer_addresses ca ON ca.address_id = o.delivery_address_id
+      WHERE o.restaurant_id = $1
+      ORDER BY o.order_date DESC
+    `, [req.params.id]);
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });

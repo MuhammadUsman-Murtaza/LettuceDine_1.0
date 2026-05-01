@@ -77,6 +77,24 @@ CREATE TABLE delivery_drivers (
 );
 
 -- ============================================================
+-- 3.5 VENDORS (New Owner Entity)
+-- Mirrors customers table but for restaurant owners.
+-- ============================================================
+CREATE TABLE vendors (
+    vendor_id     BIGINT GENERATED ALWAYS AS IDENTITY,
+    first_name    VARCHAR(50)  NOT NULL,
+    last_name     VARCHAR(50)  NOT NULL,
+    email         VARCHAR(100) NOT NULL,
+    phone_number  VARCHAR(20),
+    password_hash VARCHAR(255) NOT NULL,
+    created_at    TIMESTAMPTZ  DEFAULT NOW(),
+
+    CONSTRAINT pk_vendors        PRIMARY KEY (vendor_id),
+    CONSTRAINT uq_vendor_email   UNIQUE (email),
+    CONSTRAINT chk_vendor_phone  CHECK (phone_number ~ '^\+?[0-9]{7,15}$')
+);
+
+-- ============================================================
 -- 4. RESTAURANTS
 -- Adopted: cuisine_type, phone_number, affordability SMALLINT,
 --          embedded address (teammate's valid design decision)
@@ -94,8 +112,11 @@ CREATE TABLE restaurants (
     province       VARCHAR(50),
     location       GEOGRAPHY(POINT, 4326),
     rating         NUMERIC(2, 1),
+    vendor_id      BIGINT       NOT NULL, -- Weak Dependency
 
     CONSTRAINT pk_restaurants               PRIMARY KEY (restaurant_id),
+    CONSTRAINT fk_restaurant_vendor         FOREIGN KEY (vendor_id) 
+        REFERENCES vendors(vendor_id) ON DELETE CASCADE,
     CONSTRAINT chk_restaurant_phone         CHECK (phone_number ~ '^\+?[0-9]{7,15}$'),
     CONSTRAINT chk_restaurant_affordability CHECK (affordability IN (1, 2, 3)),
     CONSTRAINT chk_restaurant_rating        CHECK (rating >= 0 AND rating <= 5.0)
@@ -264,3 +285,12 @@ CREATE INDEX idx_orders_date        ON orders  (order_date);
 CREATE INDEX idx_reviews_restaurant ON reviews (restaurant_id);
 CREATE INDEX idx_menu_restaurant    ON menu    (restaurant_id);
 CREATE INDEX idx_payments_order     ON payments (order_id);
+
+-- ============================================================
+-- SEED DATA (Default Vendor Account)
+-- ============================================================
+INSERT INTO vendors (first_name, last_name, email, phone_number, password_hash)
+VALUES ('Admin', 'Vendor', 'vendor@lettuce.com', '+923001234567', 'password123');
+
+-- Link initial restaurants to this vendor
+UPDATE restaurants SET vendor_id = (SELECT vendor_id FROM vendors LIMIT 1);

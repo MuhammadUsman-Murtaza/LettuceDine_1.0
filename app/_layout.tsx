@@ -11,10 +11,6 @@ import { Colors } from '@/constants/Colors';
 
 SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
@@ -32,19 +28,17 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: Colors.offWhite },
-          animation: 'slide_from_right',
         }}>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="restaurant/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="cart" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="order/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="profile" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="coupons" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="payments" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
-        <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
-        <Stack.Screen name="review" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+        {/* Gateway Entry */}
+        <Stack.Screen name="index" />
+        
+        {/* Isolated Portals */}
+        <Stack.Screen name="(customer)" />
+        <Stack.Screen name="(vendor)" />
+        
+        {/* Shared Screens */}
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
       </Stack>
       <StatusBar style="light" backgroundColor={Colors.greenForest} />
     </ThemeProvider>

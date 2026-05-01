@@ -27,9 +27,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const endpoint = role === 'customer' ? '/auth/login/customer' : '/auth/login/vendor';
-      const body = role === 'customer' 
-        ? { email, password }
-        : { name: vendorName, phone_number: vendorPhone };
+      const body = { email, password };
 
       const res = await fetch(`${BASE_URL}${endpoint}`, {
         method: 'POST',
@@ -43,7 +41,7 @@ export default function LoginScreen() {
         Alert.alert('Login Failed', data.error || 'Something went wrong');
       } else {
         // Success
-        Alert.alert('Success', `Welcome back, ${role === 'customer' ? data.first_name : data.name}!`);
+        Alert.alert('Success', `Welcome back, ${data.first_name}!`);
         router.replace('/' as any);
       }
     } catch (err) {
@@ -82,57 +80,29 @@ export default function LoginScreen() {
 
           {/* Form */}
           <View style={styles.form}>
-            {role === 'customer' ? (
-              <>
-                <View style={styles.inputWrap}>
-                  <Text style={styles.label}>Email Address</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="john@example.com"
-                    placeholderTextColor={Colors.grayLight}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-                </View>
-                <View style={styles.inputWrap}>
-                  <Text style={styles.label}>Password</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter your password"
-                    placeholderTextColor={Colors.grayLight}
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-                </View>
-              </>
-            ) : (
-              <>
-                <View style={styles.inputWrap}>
-                  <Text style={styles.label}>Restaurant Name</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g. The Green Bowl"
-                    placeholderTextColor={Colors.grayLight}
-                    value={vendorName}
-                    onChangeText={setVendorName}
-                  />
-                </View>
-                <View style={styles.inputWrap}>
-                  <Text style={styles.label}>Registered Phone Number</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="+1234567890"
-                    placeholderTextColor={Colors.grayLight}
-                    keyboardType="phone-pad"
-                    value={vendorPhone}
-                    onChangeText={setVendorPhone}
-                  />
-                </View>
-              </>
-            )}
+            <View style={styles.inputWrap}>
+              <Text style={styles.label}>{role === 'customer' ? 'Customer Email' : 'Vendor Email'}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="email@example.com"
+                placeholderTextColor={Colors.grayLight}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+              />
+            </View>
+            <View style={styles.inputWrap}>
+              <Text style={styles.label}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor={Colors.grayLight}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+              />
+            </View>
 
             <TouchableOpacity 
               style={styles.submitBtn} 
