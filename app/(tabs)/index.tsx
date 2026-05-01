@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, ActivityIndicator, StyleSheet,
-  Platform, TextInput, SafeAreaView, TouchableOpacity,
+  Platform, TextInput, TouchableOpacity,
   Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';

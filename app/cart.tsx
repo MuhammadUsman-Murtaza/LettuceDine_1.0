@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Platform, SafeAreaView,
+  View, Text, StyleSheet, Platform,
   TouchableOpacity, ScrollView, TextInput, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
@@ -17,8 +19,7 @@ const PAYMENT_METHODS = ['Cash', 'Card', 'JazzCash', 'EasyPaisa'];
 
 export default function CartScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ restaurantId: string; restaurantName: string; cart: string }>();
-  const cartData: { [key: number]: number } = params.cart ? JSON.parse(params.cart) : {};
+  const params = useLocalSearchParams<{ restaurantId: string; restaurantName: string; cartDetails: string }>();
 
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [coupon, setCoupon] = useState('');
@@ -34,16 +35,12 @@ export default function CartScreen() {
   }, []);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
+  const [couponId, setCouponId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
   const [instructions, setInstructions] = useState('');
   const [placing, setPlacing] = useState(false);
 
-  // Build items list from cart object
-  const cartEntries = Object.entries(cartData).map(([menuId, qty]) => ({
-    menu_id: parseInt(menuId),
-    quantity: qty,
-    unit_price: 500, // placeholder; in real use, pass price data too
-  }));
+  const cartEntries: { menu_id: number; quantity: number; unit_price: number; name: string }[] = params.cartDetails ? JSON.parse(params.cartDetails) : [];
 
   const subtotal = cartEntries.reduce((s, i) => s + i.unit_price * i.quantity, 0);
   const deliveryFee = 50;
@@ -57,6 +54,7 @@ export default function CartScreen() {
         const data = await res.json();
         if (subtotal >= (data.min_order_value || 0)) {
           setCouponDiscount(data.discount_amount);
+          setCouponId(data.coupon_id);
           setCouponApplied(true);
         } else {
           Alert.alert('Coupon Error', `Minimum order value is PKR ${data.min_order_value}`);
@@ -72,13 +70,16 @@ export default function CartScreen() {
   const handlePlaceOrder = async () => {
     setPlacing(true);
     try {
+      const backendPaymentMethod = paymentMethod === 'Cash' ? 'cash' :
+                                   paymentMethod === 'Card' ? 'credit_card' : 'paypal';
       const body = {
         customer_id: customerId,
         restaurant_id: parseInt(params.restaurantId),
-        address_id: 1, // TODO: let user pick address
+        delivery_address_id: 1, // TODO: let user pick address
         special_instructions: instructions,
-        coupon_code: couponApplied ? coupon : null,
-        payment_method: paymentMethod,
+        coupon_id: couponApplied ? couponId : null,
+        payment_method: backendPaymentMethod,
+        total_amount: total,
         items: cartEntries,
       };
       const res = await fetch(`${BASE_URL}/orders`, {
@@ -126,7 +127,7 @@ export default function CartScreen() {
           {cartEntries.map(item => (
             <View key={item.menu_id} style={styles.itemRow}>
               <View style={styles.itemBadge}><Text style={styles.itemBadgeText}>{item.quantity}×</Text></View>
-              <Text style={styles.itemName}>Menu Item #{item.menu_id}</Text>
+              <Text style={styles.itemName}>{item.name}</Text>
               <Text style={styles.itemPrice}>PKR {(item.unit_price * item.quantity).toLocaleString()}</Text>
             </View>
           ))}
