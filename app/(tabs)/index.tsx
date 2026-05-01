@@ -90,8 +90,9 @@ export default function HomeScreen() {
     try {
       const res = await fetch(`${BASE_URL}/restaurants`);
       const data = await res.json();
-      setRestaurants(data);
-      setFiltered(data);
+      const rows = Array.isArray(data) ? data : [];
+      setRestaurants(rows);
+      setFiltered(rows);
     } catch (e) {
       console.error('Fetch error:', e);
     } finally {
