@@ -294,29 +294,92 @@ app.post('/reviews', async (req, res) => {
 });
 
 // ============================================================
-// ADMIN
+// COUPONS
 // ============================================================
-app.get('/admin/stats', async (req, res) => {
+app.get('/coupons/:code', async (req, res) => {
   try {
-    const [revRes, ordRes, custRes, vendRes] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total_revenue FROM orders WHERE status='delivered'`),
-      pool.query(`SELECT COUNT(*) AS active_orders FROM orders WHERE status NOT IN ('delivered','cancelled')`),
-      pool.query(`SELECT COUNT(*) AS total_customers FROM customers`),
-      pool.query(`SELECT COUNT(*) AS total_restaurants FROM restaurants`),
-    ]);
-    res.json({
-      total_revenue:     parseFloat(revRes.rows[0].total_revenue),
-      active_orders:     parseInt(ordRes.rows[0].active_orders),
-      total_customers:   parseInt(custRes.rows[0].total_customers),
-      total_restaurants: parseInt(vendRes.rows[0].total_restaurants),
-    });
+    const result = await pool.query(`
+      SELECT coupon_id, code, discount_amount, expiry_date, min_order_value
+      FROM coupons
+      WHERE code = $1 AND expiry_date >= CURRENT_DATE
+    `, [req.params.code]);
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: 'Invalid or expired coupon' });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
+// ============================================================
+// ORDER DETAIL + STATUS UPDATE
+// ============================================================
+app.get('/orders/:id', async (req, res) => {
+  try {
+    const orderRes = await pool.query(`
+      SELECT
+        o.order_id, o.order_date, o.total_amount, o.status,
+        o.delivery_time, o.special_instructions, o.driver_contact_at_order,
+        r.name        AS restaurant_name,
+        ca.street, ca.city,
+        p.payment_method, p.status AS payment_status,
+        d.first_name  AS driver_first_name,
+        d.last_name   AS driver_last_name,
+        d.vehicle_type
+      FROM orders o
+      JOIN  restaurants r        ON r.restaurant_id  = o.restaurant_id
+      LEFT JOIN customer_addresses ca ON ca.address_id    = o.delivery_address_id
+      LEFT JOIN payments p        ON p.order_id       = o.order_id
+      LEFT JOIN delivery_drivers d ON d.driver_id     = o.driver_id
+      WHERE o.order_id = $1
+    `, [req.params.id]);
+
+    if (orderRes.rows.length === 0)
+      return res.status(404).json({ error: 'Not found' });
+
+    const itemsRes = await pool.query(`
+      SELECT
+        oi.order_item_id,
+        COALESCE(m.food_item, m.beverages, m.desserts, m.starter) AS item_name,
+        m.description,
+        oi.quantity,
+        oi.unit_price,
+        (oi.quantity * oi.unit_price) AS line_total
+      FROM order_items oi
+      JOIN menu m ON m.menu_id = oi.menu_id
+      WHERE oi.order_id = $1
+    `, [req.params.id]);
+
+    res.json({ ...orderRes.rows[0], items: itemsRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.patch('/orders/:id/status', async (req, res) => {
+  const { status } = req.body;
+  const validStatuses = ['pending','placed','preparing','out_for_delivery','delivered','cancelled'];
+  if (!validStatuses.includes(status))
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+  try {
+    const result = await pool.query(`
+      UPDATE orders SET status = $1
+      WHERE order_id = $2
+      RETURNING order_id, status
+    `, [status, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ============================================================
 // START SERVER
+// ============================================================
 app.listen(3000, '0.0.0.0', () => {
   console.log('LettuceDine API — listening on port 3000');
 });
