@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Platform, SafeAreaView,
+  View, Text, StyleSheet, Platform,
   ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +13,7 @@ import { IconChat } from '@/components/icons/IconChat';
 import { IconLocationPin } from '@/components/icons/IconLocationPin';
 
 const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
-const CUSTOMER_ID = 1;
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Customer {
   customer_id: number;
@@ -39,6 +39,7 @@ const MENU_ITEMS = [
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,9 +48,19 @@ export default function ProfileScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [newAddress, setNewAddress] = useState({ street: '', city: '', province: '', zip_code: '', label: 'home' });
 
-  const fetchAddresses = async () => {
+  useEffect(() => {
+    AsyncStorage.getItem('CUSTOMER_ID').then(id => {
+      if (id) {
+        setCustomerId(id);
+      } else {
+        router.replace('/login' as any);
+      }
+    });
+  }, []);
+
+  const fetchAddresses = async (id: string) => {
     try {
-      const res = await fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/addresses`);
+      const res = await fetch(`${BASE_URL}/customers/${id}/addresses`);
       const data = await res.json();
       setAddresses(data);
     } catch (err) {
@@ -63,13 +74,13 @@ export default function ProfileScreen() {
       return;
     }
     try {
-      const res = await fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/addresses`, {
+      const res = await fetch(`${BASE_URL}/customers/${customerId}/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAddress)
       });
       if (res.ok) {
-        fetchAddresses();
+        if (customerId) fetchAddresses(customerId);
         setModalVisible(false);
         setNewAddress({ street: '', city: '', province: '', zip_code: '', label: 'home' });
       }
@@ -84,7 +95,7 @@ export default function ProfileScreen() {
       const confirm = window.confirm('Are you sure you want to remove this address?');
       if (!confirm) return;
       try {
-        const res = await fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/addresses/${id}`, { method: 'DELETE' });
+        const res = await fetch(`${BASE_URL}/customers/${customerId}/addresses/${id}`, { method: 'DELETE' });
         if (res.ok) setAddresses(prev => prev.filter(a => a.address_id !== id));
       } catch (err) {
         console.error(err);
@@ -96,7 +107,7 @@ export default function ProfileScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
           try {
-            const res = await fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/addresses/${id}`, { method: 'DELETE' });
+            const res = await fetch(`${BASE_URL}/customers/${customerId}/addresses/${id}`, { method: 'DELETE' });
             if (res.ok) {
               setAddresses(prev => prev.filter(a => a.address_id !== id));
             }
@@ -109,10 +120,14 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (Platform.OS === 'web') {
       const confirm = window.confirm('Are you sure you want to log out of your account?');
-      if (confirm) router.replace('/login' as any);
+      if (confirm) {
+        await AsyncStorage.removeItem('CUSTOMER_ID');
+        await AsyncStorage.removeItem('ROLE');
+        router.replace('/login' as any);
+      }
       return;
     }
 
@@ -124,8 +139,9 @@ export default function ProfileScreen() {
         { 
           text: "Log Out", 
           style: "destructive",
-          onPress: () => {
-            // Clears any local auth states here
+          onPress: async () => {
+            await AsyncStorage.removeItem('CUSTOMER_ID');
+            await AsyncStorage.removeItem('ROLE');
             router.replace('/login' as any);
           }
         }
@@ -134,11 +150,12 @@ export default function ProfileScreen() {
   };
 
   useEffect(() => {
+    if (!customerId) return;
     const fetchAll = async () => {
       try {
         const [cRes, aRes] = await Promise.all([
-          fetch(`${BASE_URL}/customers/${CUSTOMER_ID}`),
-          fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/addresses`),
+          fetch(`${BASE_URL}/customers/${customerId}`),
+          fetch(`${BASE_URL}/customers/${customerId}/addresses`),
         ]);
         if (cRes.ok) setCustomer(await cRes.json());
         if (aRes.ok) setAddresses(await aRes.json());
@@ -146,7 +163,7 @@ export default function ProfileScreen() {
       finally { setLoading(false); }
     };
     fetchAll();
-  }, []);
+  }, [customerId]);
 
   if (loading) {
     return (

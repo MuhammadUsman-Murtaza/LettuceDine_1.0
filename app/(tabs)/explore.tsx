@@ -10,25 +10,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 
-const debuggerHost = Constants.expoConfig?.hostUri?.split(':').shift();
-const ANDROID_URL = `http://${debuggerHost}:3000`;
-const BASE_URL = Platform.OS === 'android' ? ANDROID_URL : 'http://localhost:3000';
-const CUSTOMER_ID = 1; // TODO: replace with real auth
+const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STATUS_COLOR: Record<string, string> = {
-  Pending:      '#F57C00',
-  Preparing:    '#1976D2',
-  'On the Way': '#7B1FA2',
-  Delivered:    '#2E7D32',
-  Cancelled:    '#D32F2F',
+  pending:          '#F57C00',
+  placed:           '#F57C00',
+  preparing:        '#1976D2',
+  out_for_delivery: '#7B1FA2',
+  delivered:        '#2E7D32',
+  cancelled:        '#D32F2F',
 };
 
 const STATUS_EMOJI: Record<string, string> = {
-  Pending:      '🕐',
-  Preparing:    '👨‍🍳',
-  'On the Way': '🚴',
-  Delivered:    '✅',
-  Cancelled:    '❌',
+  pending:          '🕐',
+  placed:           '🕐',
+  preparing:        '👨‍🍳',
+  out_for_delivery: '🚴',
+  delivered:        '✅',
+  cancelled:        '❌',
 };
 
 interface OrderSummary {
@@ -43,25 +43,38 @@ interface OrderSummary {
 
 export default function OrdersScreen() {
   const router = useRouter();
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    AsyncStorage.getItem('CUSTOMER_ID').then(id => {
+      if (id) {
+        setCustomerId(id);
+      } else {
+        router.replace('/login' as any);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!customerId) return;
     const fetch_ = async () => {
       try {
-        const res = await fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/orders`);
+        const res = await fetch(`${BASE_URL}/customers/${customerId}/orders`);
         setOrders(await res.json());
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     };
     fetch_();
-  }, []);
+  }, [customerId]);
 
   const renderItem = ({ item }: { item: OrderSummary }) => {
     const statusColor = STATUS_COLOR[item.status] ?? Colors.gray;
     const statusEmoji = STATUS_EMOJI[item.status] ?? '📦';
     const date = new Date(item.order_date).toLocaleDateString('en-PK', { day: 'numeric', month: 'short', year: 'numeric' });
-    const isActive = !['Delivered', 'Cancelled'].includes(item.status);
+    const isActive = !['delivered', 'cancelled'].includes(item.status);
+    const displayStatus = item.status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
     return (
       <TouchableOpacity
@@ -79,7 +92,7 @@ export default function OrdersScreen() {
           </View>
           <View style={[styles.statusPill, { backgroundColor: statusColor + '20' }]}>
             <Text style={[styles.statusText, { color: statusColor }]}>
-              {statusEmoji} {item.status}
+              {statusEmoji} {displayStatus}
             </Text>
           </View>
         </View>
