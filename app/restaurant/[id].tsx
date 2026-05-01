@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, ActivityIndicator, StyleSheet,
-  Platform, TouchableOpacity, SafeAreaView, ScrollView,
+  Platform, TouchableOpacity, ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
@@ -10,9 +12,9 @@ import { Spacing } from '@/constants/Spacing';
 import { IconStar } from '@/components/icons/IconStar';
 import { IconChat } from '@/components/icons/IconChat';
 
-const BASE_URL = Platform.OS === 'android'
-  ? `http://localhost:3000`
-  : 'http://localhost:3000';
+const debuggerHost = Constants.expoConfig?.hostUri?.split(':').shift();
+const ANDROID_URL = `http://${debuggerHost}:3000`;
+const BASE_URL = Platform.OS === 'android' ? ANDROID_URL : 'http://localhost:3000';
 
 interface MenuItem {
   menu_id: number;
@@ -191,7 +193,22 @@ export default function RestaurantDetailScreen() {
               </View>
               <TouchableOpacity
                 style={styles.cartBtn}
-                onPress={() => router.push({ pathname: '/cart', params: { restaurantId: id, restaurantName: name, cart: JSON.stringify(cart) } } as any)}>
+                onPress={() => {
+                  const detailedCart = Object.entries(cart).map(([idStr, qty]) => {
+                    const item = menu.find(m => m.menu_id.toString() === idStr);
+                    const parsedMenuId = parseInt(idStr, 10);
+                    return {
+                      menu_id: parsedMenuId,
+                      quantity: qty,
+                      unit_price: Number(item?.price || 0),
+                      name: item ? getItemName(item) : `Item #${idStr}`
+                    };
+                  });
+                  router.push({
+                    pathname: '/cart',
+                    params: { restaurantId: id, restaurantName: name, cartDetails: JSON.stringify(detailedCart) }
+                  } as any);
+                }}>
                 <Text style={styles.cartBtnText}>PKR {cartTotal.toLocaleString()} →</Text>
               </TouchableOpacity>
             </View>
