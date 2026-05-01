@@ -21,7 +21,7 @@ interface Restaurant {
   name: string;
   rating: number | null;
   affordability: string;
-  street: string;
+  street_address: string;
   city: string;
   coords: { coordinates: [number, number] } | null;
 }
@@ -49,7 +49,7 @@ const RestaurantCard = ({ item, onPress, index }: { item: Restaurant; onPress: (
             <Text style={styles.bannerEmoji}>🍽️</Text>
           </View>
           <View style={styles.ratingPill}>
-            <Text style={styles.ratingPillText}>⭐ {item.rating ? Number(item.rating).toFixed(1) : 'N/A'}</Text>
+            <Text style={styles.ratingPillText}>⭐ {item.rating != null ? Number(item.rating).toFixed(1) : 'N/A'}</Text>
           </View>
         </View>
 
@@ -60,7 +60,7 @@ const RestaurantCard = ({ item, onPress, index }: { item: Restaurant; onPress: (
           <View style={styles.cardRow}>
             <IconLocationPin size={14} color={Colors.greenFresh} />
             <Text style={styles.cardSub} numberOfLines={1}>
-              {[item.street, item.city].filter(Boolean).join(', ') || 'Location unavailable'}
+              {[item.street_address, item.city].filter(Boolean).join(', ') || 'Location unavailable'}
             </Text>
           </View>
 

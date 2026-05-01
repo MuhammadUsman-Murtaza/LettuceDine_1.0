@@ -39,6 +39,10 @@ export default function RootLayout() {
         <Stack.Screen name="cart" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="order/[id]" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="profile" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="coupons" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="payments" options={{ headerShown: false, animation: 'slide_from_right' }} />
+        <Stack.Screen name="login" options={{ headerShown: false, animation: 'fade' }} />
+        <Stack.Screen name="register" options={{ headerShown: false, animation: 'slide_from_right' }} />
         <Stack.Screen name="review" options={{ headerShown: false, animation: 'slide_from_bottom' }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       </Stack>
