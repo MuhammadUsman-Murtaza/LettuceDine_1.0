@@ -18,6 +18,64 @@ app.get('/health', (req, res) => {
 });
 
 // ============================================================
+// AUTHENTICATION
+// ============================================================
+app.post('/auth/login/customer', async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const result = await pool.query(
+      `SELECT customer_id, first_name, last_name, email 
+       FROM customers WHERE email = $1 AND password_hash = $2`,
+      [email, password]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/auth/login/vendor', async (req, res) => {
+  // Vendors don't have passwords in the current DB schema, so we authenticate by name & phone
+  const { name, phone_number } = req.body;
+  try {
+    const result = await pool.query(
+      `SELECT restaurant_id, name, cuisine_type, phone_number 
+       FROM restaurants WHERE name = $1 AND phone_number = $2`,
+      [name, phone_number]
+    );
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid name or phone number' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/auth/register/vendor', async (req, res) => {
+  const { name, cuisine_type, phone_number, city, street_address } = req.body;
+  try {
+    const result = await pool.query(`
+      INSERT INTO restaurants (name, cuisine_type, phone_number, city, street_address)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING restaurant_id, name, cuisine_type
+    `, [name, cuisine_type, phone_number, city, street_address]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ============================================================
 // RESTAURANTS
 // ============================================================
 app.get('/restaurants', async (req, res) => {
@@ -220,7 +278,7 @@ app.post('/orders', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
       RETURNING order_id
     `, [customer_id, restaurant_id, delivery_address_id, totalAmount, special_instructions, coupon_id || null]);
-    
+
     const order_id = orderRes.rows[0].order_id;
 
     // 2. Insert order items[cite: 1]
@@ -294,6 +352,116 @@ app.post('/reviews', async (req, res) => {
 });
 
 // ============================================================
+// COUPONS & PAYMENTS
+// ============================================================
+app.get('/coupons', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT coupon_id, code, discount_amount, expiry_date, min_order_value 
+      FROM coupons 
+      WHERE expiry_date >= CURRENT_DATE
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/coupons/:code', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT coupon_id, code, discount_amount, expiry_date, min_order_value 
+      FROM coupons 
+      WHERE code = $1 AND expiry_date >= CURRENT_DATE
+    `, [req.params.code]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Coupon not found or expired' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/customers/:id/payments', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT payment_method
+      FROM payments
+      WHERE customer_id = $1
+    `, [req.params.id]);
+
+    // Also return the accepted payment modes
+    res.json({
+      history: result.rows.map(r => r.payment_method),
+      available: ['credit_card', 'debit_card', 'paypal', 'cash']
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ============================================================
+// ADDRESS MANAGEMENT
+// ============================================================
+app.get('/customers/:id/addresses', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT address_id, street, city, province, zip_code, label
+      FROM customer_addresses
+      WHERE customer_id = $1
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.post('/customers/:id/addresses', async (req, res) => {
+  const { street, city, province, zip_code, label } = req.body;
+  try {
+    const result = await pool.query(`
+      INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING address_id, street, city, zip_code, label
+    `, [req.params.id, street, city, province, zip_code, label || 'home']);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/customers/:id/addresses/:addressId', async (req, res) => {
+  try {
+    // Prevent Foreign Key violation by nullifying references in past orders
+    await pool.query(`
+      UPDATE orders 
+      SET delivery_address_id = NULL 
+      WHERE delivery_address_id = $1
+    `, [req.params.addressId]);
+
+    const result = await pool.query(`
+      DELETE FROM customer_addresses
+      WHERE customer_id = $1 AND address_id = $2
+      RETURNING address_id
+    `, [req.params.id, req.params.addressId]);
+    
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: 'Address not found or unauthorized' });
+    }
+    res.json({ message: 'Address deleted successfully' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ============================================================
 // ADMIN
 // ============================================================
 app.get('/admin/stats', async (req, res) => {
@@ -305,9 +473,9 @@ app.get('/admin/stats', async (req, res) => {
       pool.query(`SELECT COUNT(*) AS total_restaurants FROM restaurants`),
     ]);
     res.json({
-      total_revenue:     parseFloat(revRes.rows[0].total_revenue),
-      active_orders:     parseInt(ordRes.rows[0].active_orders),
-      total_customers:   parseInt(custRes.rows[0].total_customers),
+      total_revenue: parseFloat(revRes.rows[0].total_revenue),
+      active_orders: parseInt(ordRes.rows[0].active_orders),
+      total_customers: parseInt(custRes.rows[0].total_customers),
       total_restaurants: parseInt(vendRes.rows[0].total_restaurants),
     });
   } catch (err) {

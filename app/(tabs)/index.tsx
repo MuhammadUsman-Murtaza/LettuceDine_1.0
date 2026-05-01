@@ -16,11 +16,11 @@ const ANDROID_URL = `http://${debuggerHost}:3000`;
 const BASE_URL = Platform.OS === 'android' ? ANDROID_URL : 'http://localhost:3000';
 
 interface Restaurant {
-  id: number;
+  restaurant_id: number;
   name: string;
   rating: number | null;
   affordability: string;
-  street: string;
+  street_address: string;
   city: string;
   coords: { coordinates: [number, number] } | null;
 }
@@ -48,7 +48,7 @@ const RestaurantCard = ({ item, onPress, index }: { item: Restaurant; onPress: (
             <Text style={styles.bannerEmoji}>🍽️</Text>
           </View>
           <View style={styles.ratingPill}>
-            <Text style={styles.ratingPillText}>⭐ {item.rating?.toFixed(1) ?? 'N/A'}</Text>
+            <Text style={styles.ratingPillText}>⭐ {item.rating != null ? Number(item.rating).toFixed(1) : 'N/A'}</Text>
           </View>
         </View>
 
@@ -59,7 +59,7 @@ const RestaurantCard = ({ item, onPress, index }: { item: Restaurant; onPress: (
           <View style={styles.cardRow}>
             <IconLocationPin size={14} color={Colors.greenFresh} />
             <Text style={styles.cardSub} numberOfLines={1}>
-              {[item.street, item.city].filter(Boolean).join(', ') || 'Location unavailable'}
+              {[item.street_address, item.city].filter(Boolean).join(', ') || 'Location unavailable'}
             </Text>
           </View>
 
@@ -163,12 +163,12 @@ export default function HomeScreen() {
       {/* List */}
       <FlatList
         data={filtered}
-        keyExtractor={item => item.id.toString()}
+        keyExtractor={item => item.restaurant_id.toString()}
         renderItem={({ item, index }) => (
           <RestaurantCard
             item={item}
             index={index}
-            onPress={() => router.push({ pathname: '/restaurant/[id]', params: { id: item.id, name: item.name } } as any)}
+            onPress={() => router.push({ pathname: '/restaurant/[id]', params: { id: item.restaurant_id, name: item.name } } as any)}
           />
         )}
         ListHeaderComponent={
