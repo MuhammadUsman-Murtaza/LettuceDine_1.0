@@ -378,69 +378,6 @@ app.patch('/orders/:id/status', async (req, res) => {
 });
 
 // ============================================================
-// ADMIN
-// ============================================================
-app.get('/admin/stats', async (req, res) => {
-  try {
-    const [revRes, ordRes, custRes, vendRes] = await Promise.all([
-      pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total_revenue FROM orders WHERE status='delivered'`),
-      pool.query(`SELECT COUNT(*) AS active_orders FROM orders WHERE status NOT IN ('delivered','cancelled')`),
-      pool.query(`SELECT COUNT(*) AS total_customers FROM customers`),
-      pool.query(`SELECT COUNT(*) AS total_restaurants FROM restaurants`),
-    ]);
-    res.json({
-      total_revenue:     parseFloat(revRes.rows[0].total_revenue),
-      active_orders:     parseInt(ordRes.rows[0].active_orders),
-      total_customers:   parseInt(custRes.rows[0].total_customers),
-      total_restaurants: parseInt(vendRes.rows[0].total_restaurants),
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-app.get('/admin/orders', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT
-        o.order_id, o.order_date, o.total_amount, o.status,
-        c.first_name || ' ' || c.last_name AS customer_name,
-        r.name AS restaurant_name
-      FROM orders o
-      JOIN customers   c ON c.customer_id   = o.customer_id
-      JOIN restaurants r ON r.restaurant_id = o.restaurant_id
-      ORDER BY o.order_date DESC
-      LIMIT 100
-    `);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-app.get('/admin/restaurants', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT
-        r.restaurant_id, r.name, r.cuisine_type, r.rating, r.affordability, r.city,
-        COUNT(DISTINCT o.order_id)   AS total_orders,
-        COUNT(DISTINCT rv.review_id) AS total_reviews
-      FROM restaurants r
-      LEFT JOIN orders  o  ON o.restaurant_id  = r.restaurant_id
-      LEFT JOIN reviews rv ON rv.restaurant_id = r.restaurant_id
-      GROUP BY r.restaurant_id, r.name, r.cuisine_type, r.rating, r.affordability, r.city
-      ORDER BY r.name
-    `);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Database error' });
-  }
-});
-
-// ============================================================
 // START SERVER
 // ============================================================
 app.listen(3000, '0.0.0.0', () => {
