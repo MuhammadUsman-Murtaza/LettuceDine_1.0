@@ -23,6 +23,8 @@ export default function CartScreen() {
 
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [coupon, setCoupon] = useState('');
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
   useEffect(() => {
     AsyncStorage.getItem('CUSTOMER_ID').then(id => {
@@ -33,6 +35,17 @@ export default function CartScreen() {
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!customerId) return;
+    fetch(`${BASE_URL}/customers/${customerId}/addresses`)
+      .then(res => res.json())
+      .then(data => {
+        setAddresses(data);
+        if (data.length > 0) setSelectedAddressId(data[0].address_id);
+      })
+      .catch(console.error);
+  }, [customerId]);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponId, setCouponId] = useState<number | null>(null);
@@ -68,6 +81,10 @@ export default function CartScreen() {
   };
 
   const handlePlaceOrder = async () => {
+    if (!selectedAddressId) {
+      Alert.alert('Address Required', 'Please select a delivery address or add one in your profile.');
+      return;
+    }
     setPlacing(true);
     try {
       const backendPaymentMethod = paymentMethod === 'Cash' ? 'cash' :
@@ -75,7 +92,7 @@ export default function CartScreen() {
       const body = {
         customer_id: customerId,
         restaurant_id: parseInt(params.restaurantId),
-        delivery_address_id: 1, // TODO: let user pick address
+        delivery_address_id: selectedAddressId,
         special_instructions: instructions,
         coupon_id: couponApplied ? couponId : null,
         payment_method: backendPaymentMethod,
@@ -136,11 +153,29 @@ export default function CartScreen() {
         {/* Delivery Address */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
-          <TouchableOpacity style={styles.addressCard}>
-            <IconLocationPin size={18} color={Colors.greenForest} />
-            <Text style={styles.addressText}>House 12, DHA Phase 5, Karachi</Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.gray} />
-          </TouchableOpacity>
+          {addresses.length === 0 ? (
+            <Text style={[styles.addressText, { padding: 10, color: Colors.gray }]}>No addresses found. Please add one in your Profile.</Text>
+          ) : (
+            addresses.map(a => (
+              <TouchableOpacity
+                key={a.address_id}
+                style={[
+                  styles.addressCard,
+                  { marginBottom: 8 },
+                  selectedAddressId === a.address_id && { borderColor: Colors.greenForest, borderWidth: 2 }
+                ]}
+                onPress={() => setSelectedAddressId(a.address_id)}>
+                <IconLocationPin size={18} color={selectedAddressId === a.address_id ? Colors.greenForest : Colors.gray} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '700', fontSize: 13, color: Colors.charcoal, textTransform: 'capitalize' }}>
+                    {a.label || 'Address'}
+                  </Text>
+                  <Text style={styles.addressText}>{a.street}, {a.city}</Text>
+                </View>
+                {selectedAddressId === a.address_id && <Ionicons name="checkmark-circle" size={20} color={Colors.greenForest} />}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Coupon */}
