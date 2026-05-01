@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Platform, SafeAreaView,
+  View, Text, StyleSheet, Platform,
   FlatList, TouchableOpacity, ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 
-const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+const debuggerHost = Constants.expoConfig?.hostUri?.split(':').shift();
+const ANDROID_URL = `http://${debuggerHost}:3000`;
+const BASE_URL = Platform.OS === 'android' ? ANDROID_URL : 'http://localhost:3000';
 const CUSTOMER_ID = 1; // TODO: replace with real auth
 
 const STATUS_COLOR: Record<string, string> = {
