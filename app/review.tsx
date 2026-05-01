@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Platform, SafeAreaView,
   TouchableOpacity, TextInput, Alert, ScrollView,
@@ -10,7 +10,7 @@ import { Spacing } from '@/constants/Spacing';
 import { IconStar } from '@/components/icons/IconStar';
 
 const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
-const CUSTOMER_ID = 1;
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function ReviewScreen() {
   const router = useRouter();
@@ -20,10 +20,21 @@ export default function ReviewScreen() {
     restaurantId: string;
   }>();
 
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [hovered, setHovered] = useState(0);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem('CUSTOMER_ID').then(id => {
+      if (id) {
+        setCustomerId(id);
+      } else {
+        router.replace('/login' as any);
+      }
+    });
+  }, []);
 
   const displayRating = hovered || rating;
 
@@ -47,7 +58,7 @@ export default function ReviewScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customer_id: CUSTOMER_ID,
+          customer_id: customerId,
           order_id: parseInt(orderId),
           restaurant_id: parseInt(restaurantId ?? '1'),
           rating,

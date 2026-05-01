@@ -461,6 +461,29 @@ app.delete('/customers/:id/addresses/:addressId', async (req, res) => {
   }
 });
 
+app.get('/customers/:id/orders', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        o.order_id,
+        o.order_date,
+        o.total_amount,
+        o.status,
+        r.name AS restaurant_name,
+        ca.street, ca.city
+      FROM orders o
+      JOIN restaurants r ON r.restaurant_id = o.restaurant_id
+      LEFT JOIN customer_addresses ca ON ca.address_id = o.delivery_address_id
+      WHERE o.customer_id = $1
+      ORDER BY o.order_date DESC
+    `, [req.params.id]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // ============================================================
 // ADMIN
 // ============================================================

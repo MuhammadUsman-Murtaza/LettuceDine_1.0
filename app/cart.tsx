@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Platform, SafeAreaView,
   TouchableOpacity, ScrollView, TextInput, Alert,
@@ -11,7 +11,7 @@ import { IconCart } from '@/components/icons/IconCart';
 import { IconLocationPin } from '@/components/icons/IconLocationPin';
 
 const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
-const CUSTOMER_ID = 1; // TODO: replace with real auth
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PAYMENT_METHODS = ['Cash', 'Card', 'JazzCash', 'EasyPaisa'];
 
@@ -20,7 +20,18 @@ export default function CartScreen() {
   const params = useLocalSearchParams<{ restaurantId: string; restaurantName: string; cart: string }>();
   const cartData: { [key: number]: number } = params.cart ? JSON.parse(params.cart) : {};
 
+  const [customerId, setCustomerId] = useState<string | null>(null);
   const [coupon, setCoupon] = useState('');
+
+  useEffect(() => {
+    AsyncStorage.getItem('CUSTOMER_ID').then(id => {
+      if (id) {
+        setCustomerId(id);
+      } else {
+        router.replace('/login' as any);
+      }
+    });
+  }, []);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -62,7 +73,7 @@ export default function CartScreen() {
     setPlacing(true);
     try {
       const body = {
-        customer_id: CUSTOMER_ID,
+        customer_id: customerId,
         restaurant_id: parseInt(params.restaurantId),
         address_id: 1, // TODO: let user pick address
         special_instructions: instructions,
