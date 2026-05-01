@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Platform,
   TouchableOpacity, ScrollView, TextInput, Alert,
@@ -12,18 +12,43 @@ import { Spacing } from '@/constants/Spacing';
 import { IconCart } from '@/components/icons/IconCart';
 import { IconLocationPin } from '@/components/icons/IconLocationPin';
 
-const debuggerHost = Constants.expoConfig?.hostUri?.split(':').shift();
-const ANDROID_URL = `http://${debuggerHost}:3000`;
-const BASE_URL = Platform.OS === 'android' ? ANDROID_URL : 'http://localhost:3000';
-const CUSTOMER_ID = 1; // TODO: replace with real auth
+const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PAYMENT_METHODS = ['Cash', 'Card', 'JazzCash', 'EasyPaisa'];
+
+interface Address {
+  address_id: number;
+  street: string;
+  city: string;
+  label: string;
+}
 
 export default function CartScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ restaurantId: string; restaurantName: string; cartDetails: string }>();
 
+  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [coupon, setCoupon] = useState('');
+
+  useEffect(() => {
+    AsyncStorage.getItem('CUSTOMER_ID').then(id => {
+      if (id) {
+        setCustomerId(id);
+        fetch(`${BASE_URL}/customers/${id}/addresses`)
+          .then(res => res.json())
+          .then((data: Address[]) => {
+            setAddresses(data);
+            if (data.length > 0) setSelectedAddressId(data[0].address_id);
+          })
+          .catch(console.error);
+      } else {
+        router.replace('/login' as any);
+      }
+    });
+  }, []);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponId, setCouponId] = useState<number | null>(null);
@@ -59,14 +84,18 @@ export default function CartScreen() {
   };
 
   const handlePlaceOrder = async () => {
+    if (!selectedAddressId) {
+      Alert.alert('Address Required', 'Please select a delivery address.');
+      return;
+    }
     setPlacing(true);
     try {
       const backendPaymentMethod = paymentMethod === 'Cash' ? 'cash' :
                                    paymentMethod === 'Card' ? 'credit_card' : 'paypal';
       const body = {
-        customer_id: CUSTOMER_ID,
+        customer_id: customerId,
         restaurant_id: parseInt(params.restaurantId),
-        delivery_address_id: 1, // TODO: let user pick address
+        delivery_address_id: selectedAddressId,
         special_instructions: instructions,
         coupon_id: couponApplied ? couponId : null,
         payment_method: backendPaymentMethod,
@@ -127,11 +156,23 @@ export default function CartScreen() {
         {/* Delivery Address */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📍 Delivery Address</Text>
-          <TouchableOpacity style={styles.addressCard}>
-            <IconLocationPin size={18} color={Colors.greenForest} />
-            <Text style={styles.addressText}>House 12, DHA Phase 5, Karachi</Text>
-            <Ionicons name="chevron-forward" size={16} color={Colors.gray} />
-          </TouchableOpacity>
+          {addresses.length === 0 ? (
+            <Text style={{ color: Colors.gray, fontStyle: 'italic' }}>No addresses found. Please add one in your Profile.</Text>
+          ) : (
+            addresses.map(addr => (
+              <TouchableOpacity
+                key={addr.address_id}
+                style={[styles.addressCard, selectedAddressId === addr.address_id && { borderColor: Colors.greenForest, borderWidth: 2 }]}
+                onPress={() => setSelectedAddressId(addr.address_id)}>
+                <IconLocationPin size={18} color={selectedAddressId === addr.address_id ? Colors.greenForest : Colors.gray} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.addressText, { fontWeight: selectedAddressId === addr.address_id ? '700' : '400' }]}>{addr.street}</Text>
+                  <Text style={{ fontSize: 12, color: Colors.gray }}>{addr.city} • {addr.label.toUpperCase()}</Text>
+                </View>
+                {selectedAddressId === addr.address_id && <Ionicons name="checkmark-circle" size={20} color={Colors.greenForest} />}
+              </TouchableOpacity>
+            ))
+          )}
         </View>
 
         {/* Coupon */}

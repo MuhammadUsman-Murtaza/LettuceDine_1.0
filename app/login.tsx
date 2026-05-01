@@ -4,6 +4,7 @@ import {
   SafeAreaView, Platform, KeyboardAvoidingView, ScrollView, Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 
@@ -40,7 +41,10 @@ export default function LoginScreen() {
       if (!res.ok) {
         Alert.alert('Login Failed', data.error || 'Something went wrong');
       } else {
-        // Success
+        // Success: Save session using teammate's logic
+        await AsyncStorage.setItem('CUSTOMER_ID', String(role === 'customer' ? data.customer_id : data.vendor_id));
+        await AsyncStorage.setItem('ROLE', role);
+        
         Alert.alert('Success', `Welcome back, ${data.first_name}!`);
         router.replace('/' as any);
       }

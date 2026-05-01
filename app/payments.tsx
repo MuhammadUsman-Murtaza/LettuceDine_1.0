@@ -9,7 +9,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 
 const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
-const CUSTOMER_ID = 1; // Assuming hardcoded for now, like in profile
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface PaymentData {
   history: string[];
@@ -21,8 +21,21 @@ export default function PaymentsScreen() {
   const [data, setData] = useState<PaymentData>({ history: [], available: [] });
   const [loading, setLoading] = useState(true);
 
+  const [customerId, setCustomerId] = useState<string | null>(null);
+
   useEffect(() => {
-    fetch(`${BASE_URL}/customers/${CUSTOMER_ID}/payments`)
+    AsyncStorage.getItem('CUSTOMER_ID').then(id => {
+      if (id) {
+        setCustomerId(id);
+      } else {
+        router.replace('/login' as any);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!customerId) return;
+    fetch(`${BASE_URL}/customers/${customerId}/payments`)
       .then(res => res.json())
       .then(json => {
         setData(json);
@@ -32,7 +45,7 @@ export default function PaymentsScreen() {
         console.error(err);
         setLoading(false);
       });
-  }, []);
+  }, [customerId]);
 
   const renderIcon = (method: string) => {
     if (method.includes('card')) return '💳';
