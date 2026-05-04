@@ -10,6 +10,8 @@ import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+
+
 /**
  * HOME SCREEN (Clean Refactor)
  * Premium feed of restaurants with search and categories.
@@ -36,9 +38,9 @@ export default function HomeScreen() {
     }
   };
 
-  const filtered = restaurants.filter(r => 
-    r.name.toLowerCase().includes(search.toLowerCase()) ||
-    r.cuisine_type.toLowerCase().includes(search.toLowerCase())
+  const filtered = (restaurants || []).filter(r => 
+    r.name?.toLowerCase().includes(search.toLowerCase()) ||
+    r.cuisine_type?.toLowerCase().includes(search.toLowerCase())
   );
 
   const renderRestaurant = ({ item }) => (
