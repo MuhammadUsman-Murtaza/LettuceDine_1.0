@@ -42,7 +42,7 @@ app.post('/auth/login/vendor', async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query(
-      `SELECT v.vendor_id, v.first_name, v.email, r.restaurant_id
+      `SELECT v.vendor_id, v.first_name, v.last_name, v.email, r.restaurant_id
        FROM vendors v
        LEFT JOIN restaurants r ON r.vendor_id = v.vendor_id
        WHERE v.email = $1 AND v.password_hash = $2`,
@@ -74,17 +74,17 @@ app.get('/vendors/:id/restaurants', async (req, res) => {
 });
 
 app.post('/auth/register/vendor', async (req, res) => {
-  const { name, cuisine_type, phone_number, city, street_address, email, password_hash } = req.body;
+  const { first_name, last_name, cuisine_type, phone_number, city, street_address, email, password_hash } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
     // 1. Create the Vendor Account
     const vendorRes = await client.query(`
-      INSERT INTO vendors (name, email, phone_number, password_hash)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO vendors (first_name, last_name, email, phone_number, password_hash)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING vendor_id
-    `, [name, email, phone_number, password_hash]);
+    `, [first_name, last_name, email, phone_number, password_hash]);
     
     const vendorId = vendorRes.rows[0].vendor_id;
 
@@ -127,8 +127,7 @@ app.get('/restaurants', async (req, res) => {
         affordability,
         street_address,
         city,
-        province,
-        ST_AsGeoJSON(location)::json AS coords
+        province
       FROM restaurants
       ORDER BY rating DESC NULLS LAST;
     `);
@@ -144,8 +143,7 @@ app.get('/restaurants/:id', async (req, res) => {
     const result = await pool.query(`
       SELECT
         restaurant_id, name, cuisine_type, rating, affordability,
-        street_address, city, province, phone_number,
-        ST_AsGeoJSON(location)::json AS coords
+        street_address, city, province, phone_number
       FROM restaurants
       WHERE restaurant_id = $1
     `, [req.params.id]);
@@ -236,8 +234,7 @@ app.post('/customers', async (req, res) => {
 app.get('/customers/:id/addresses', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT address_id, street, city, province, zip_code, label,
-             ST_AsGeoJSON(location)::json AS coords
+      SELECT address_id, street, city, province, zip_code, label
       FROM customer_addresses
       WHERE customer_id = $1
     `, [req.params.id]);
@@ -249,14 +246,11 @@ app.get('/customers/:id/addresses', async (req, res) => {
 });
 
 app.post('/customers/:id/addresses', async (req, res) => {
-  const { street, city, province, zip_code, label, latitude, longitude } = req.body;
+  const { street, city, province, zip_code, label } = req.body;
   try {
-    const locationVal = (latitude != null && longitude != null)
-      ? `ST_SetSRID(ST_MakePoint(${parseFloat(longitude)}, ${parseFloat(latitude)}), 4326)::geography`
-      : 'NULL';
     const result = await pool.query(
-      `INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label, location)
-       VALUES ($1, $2, $3, $4, $5, $6, ${locationVal})
+      `INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING address_id, street, city, zip_code, label`,
       [req.params.id, street, city, province, zip_code, label || 'home']
     );
@@ -525,9 +519,9 @@ app.get('/customers/:id/orders', async (req, res) => {
 });
 
 // ============================================================
-// ADMIN
+// ADMIN STATS
 // ============================================================
-app.get('/coupons/:code', async (req, res) => {
+app.get('/admin/stats', async (req, res) => {
   try {
     const [revRes, ordRes, custRes, vendRes] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total_revenue FROM orders WHERE status='delivered'`),
