@@ -31,9 +31,18 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
-          title: 'Orders',
+          title: 'My Orders',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons size={22} name={focused ? 'receipt' : 'receipt-outline'} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons size={22} name={focused ? 'person' : 'person-outline'} color={color} />
           ),
         }}
       />

@@ -42,8 +42,10 @@ app.post('/auth/login/vendor', async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query(
-      `SELECT vendor_id, first_name, last_name, email, phone_number 
-       FROM vendors WHERE email = $1 AND password_hash = $2`,
+      `SELECT v.vendor_id, v.name, v.email, r.restaurant_id
+       FROM vendors v
+       LEFT JOIN restaurants r ON r.vendor_id = v.vendor_id
+       WHERE v.email = $1 AND v.password_hash = $2`,
       [email, password]
     );
     if (result.rows.length === 0) {
@@ -72,17 +74,39 @@ app.get('/vendors/:id/restaurants', async (req, res) => {
 });
 
 app.post('/auth/register/vendor', async (req, res) => {
-  const { name, cuisine_type, phone_number, city, street_address } = req.body;
+  const { name, cuisine_type, phone_number, city, street_address, email, password_hash } = req.body;
+  const client = await pool.connect();
   try {
-    const result = await pool.query(`
-      INSERT INTO restaurants (name, cuisine_type, phone_number, city, street_address)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING restaurant_id, name, cuisine_type
-    `, [name, cuisine_type, phone_number, city, street_address]);
-    res.status(201).json(result.rows[0]);
+    await client.query('BEGIN');
+    
+    // 1. Create the Vendor Account
+    const vendorRes = await client.query(`
+      INSERT INTO vendors (name, email, phone_number, password_hash)
+      VALUES ($1, $2, $3, $4)
+      RETURNING vendor_id
+    `, [name, email, phone_number, password_hash]);
+    
+    const vendorId = vendorRes.rows[0].vendor_id;
+
+    // 2. Create the Restaurant linked to this Vendor
+    const restRes = await client.query(`
+      INSERT INTO restaurants (name, cuisine_type, phone_number, city, street_address, vendor_id)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING restaurant_id, name
+    `, [name, cuisine_type, phone_number, city, street_address, vendorId]);
+
+    await client.query('COMMIT');
+    res.status(201).json({ 
+      message: 'Vendor and Restaurant created successfully',
+      vendor_id: vendorId,
+      restaurant_id: restRes.rows[0].restaurant_id 
+    });
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
-    res.status(500).json({ error: 'Database error' });
+    res.status(500).json({ error: 'Vendor registration failed' });
+  } finally {
+    client.release();
   }
 });
 app.get('/health', (req, res) => {

@@ -1,55 +1,58 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, Platform, KeyboardAvoidingView, ScrollView, Alert
+  SafeAreaView, Platform, KeyboardAvoidingView, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '@/utils/api';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 
-const BASE_URL = Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000';
-
+/**
+ * LOGIN SCREEN (Clean Refactor)
+ * High-performance, unified login for Customers and Vendors.
+ */
 export default function LoginScreen() {
   const router = useRouter();
   const [role, setRole] = useState<'customer' | 'vendor'>('customer');
-  
-  // Customer fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  
-  // Vendor fields
-  const [vendorName, setVendorName] = useState('');
-  const [vendorPhone, setVendorPhone] = useState('');
-
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Missing Info", "Please enter both email and password.");
+      return;
+    }
+
     setLoading(true);
     try {
       const endpoint = role === 'customer' ? '/auth/login/customer' : '/auth/login/vendor';
-      const body = { email, password };
-
-      const res = await fetch(`${BASE_URL}${endpoint}`, {
+      
+      const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ email, password })
       });
       
       const data = await res.json();
       
       if (!res.ok) {
-        Alert.alert('Login Failed', data.error || 'Something went wrong');
+        Alert.alert('Login Failed', data.error || 'Invalid credentials');
       } else {
-        // Success: Save session using teammate's logic
-        await AsyncStorage.setItem('CUSTOMER_ID', String(role === 'customer' ? data.customer_id : data.vendor_id));
+        // Success: Store IDs based on role
         await AsyncStorage.setItem('ROLE', role);
+        if (role === 'customer') {
+          await AsyncStorage.setItem('CUSTOMER_ID', String(data.customer_id));
+        } else {
+          await AsyncStorage.setItem('VENDOR_ID', String(data.vendor_id));
+          await AsyncStorage.setItem('RESTAURANT_ID', String(data.restaurant_id || ''));
+        }
         
-        Alert.alert('Success', `Welcome back, ${data.first_name}!`);
-        router.replace('/' as any);
+        router.replace('/'); // Auto-redirector will take them to the right dashboard
       }
     } catch (err) {
-      console.error(err);
       Alert.alert('Error', 'Could not connect to the server');
     } finally {
       setLoading(false);
@@ -66,7 +69,7 @@ export default function LoginScreen() {
             <Text style={styles.subtitle}>Log in to continue to LettuceDine</Text>
           </View>
 
-          {/* Role Switcher */}
+          {/* Role Tab Switcher */}
           <View style={styles.tabContainer}>
             <TouchableOpacity 
               style={[styles.tab, role === 'customer' && styles.activeTab]}
@@ -82,14 +85,12 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Form */}
           <View style={styles.form}>
             <View style={styles.inputWrap}>
               <Text style={styles.label}>{role === 'customer' ? 'Customer Email' : 'Vendor Email'}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="email@example.com"
-                placeholderTextColor={Colors.grayLight}
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
@@ -100,8 +101,7 @@ export default function LoginScreen() {
               <Text style={styles.label}>Password</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your password"
-                placeholderTextColor={Colors.grayLight}
+                placeholder="Enter password"
                 secureTextEntry
                 value={password}
                 onChangeText={setPassword}
@@ -109,11 +109,15 @@ export default function LoginScreen() {
             </View>
 
             <TouchableOpacity 
-              style={styles.submitBtn} 
+              style={[styles.submitBtn, loading && { opacity: 0.7 }]} 
               onPress={handleLogin}
               disabled={loading}
             >
-              <Text style={styles.submitBtnText}>{loading ? 'Logging in...' : 'Login'}</Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>Login</Text>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -132,72 +136,35 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.offWhite },
-  scroll: { padding: Spacing.screenMargin, paddingTop: Platform.OS === 'android' ? 60 : 40, paddingBottom: 40 },
+  scroll: { padding: 30, paddingTop: 60 },
+  header: { marginBottom: 40 },
+  title: { fontSize: 32, fontWeight: '900', color: Colors.black },
+  subtitle: { fontSize: 16, color: Colors.gray, marginTop: 5 },
   
-  header: { marginBottom: 32 },
-  title: { fontSize: 32, fontWeight: '800', color: Colors.black, marginBottom: 8 },
-  subtitle: { fontSize: 16, color: Colors.gray },
-
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 32,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 8, elevation: 2,
+  tabContainer: { 
+    flexDirection: 'row', backgroundColor: Colors.white, borderRadius: 16, padding: 4, marginBottom: 40,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 10, elevation: 2
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  activeTab: {
-    backgroundColor: Colors.greenForest, // Bright Yellow
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.gray,
-  },
-  activeTabText: {
-    color: Colors.black,
-  },
+  tab: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
+  activeTab: { backgroundColor: Colors.greenForest },
+  tabText: { fontWeight: '700', color: Colors.gray },
+  activeTabText: { color: Colors.black },
 
   form: { gap: 20 },
   inputWrap: { gap: 8 },
-  label: { fontSize: 14, fontWeight: '600', color: Colors.charcoal },
-  input: {
-    backgroundColor: Colors.white,
-    borderWidth: 1,
-    borderColor: Colors.grayBg,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 52,
-    fontSize: 15,
-    color: Colors.black,
+  label: { fontSize: 14, fontWeight: '700', color: Colors.black },
+  input: { 
+    backgroundColor: Colors.white, padding: 16, borderRadius: 15, fontSize: 16, 
+    borderWidth: 1, borderColor: Colors.grayBg 
   },
+  submitBtn: { 
+    backgroundColor: Colors.black, height: 60, borderRadius: 20, 
+    justifyContent: 'center', alignItems: 'center', marginTop: 10,
+    shadowColor: Colors.black, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 15, elevation: 5
+  },
+  submitBtnText: { color: '#fff', fontSize: 18, fontWeight: '800' },
 
-  submitBtn: {
-    backgroundColor: Colors.greenForest,
-    height: 56,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 12,
-    shadowColor: Colors.greenForest, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 8,
-  },
-  submitBtnText: {
-    color: Colors.black,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 32,
-  },
+  footer: { flexDirection: 'row', justifyContent: 'center', marginTop: 40 },
   footerText: { color: Colors.gray, fontSize: 15 },
-  footerLink: { color: Colors.greenFresh, fontSize: 15, fontWeight: '700' }, // Sea Blue
+  footerLink: { color: Colors.greenForest, fontSize: 15, fontWeight: '800' }
 });
