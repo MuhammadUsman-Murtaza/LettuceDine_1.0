@@ -42,7 +42,7 @@ app.post('/auth/login/vendor', async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query(
-      `SELECT v.vendor_id, v.name, v.email, r.restaurant_id
+      `SELECT v.vendor_id, v.first_name, v.email, r.restaurant_id
        FROM vendors v
        LEFT JOIN restaurants r ON r.vendor_id = v.vendor_id
        WHERE v.email = $1 AND v.password_hash = $2`,
