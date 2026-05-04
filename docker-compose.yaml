@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgis/postgis:17-master
+    image: postgres:17
     container_name: lettucedine-db
     restart: always
     shm_size: 128mb
