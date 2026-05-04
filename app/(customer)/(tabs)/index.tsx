@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, FlatList, Image, StyleSheet, TouchableOpacity,
-  ActivityIndicator, TextInput, ScrollView
+  ActivityIndicator, TextInput, ScrollView, Modal
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -20,6 +20,8 @@ export default function HomeScreen() {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [selectedCity, setSelectedCity] = useState('All Cities');
+  const [showCityModal, setShowCityModal] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -30,18 +32,23 @@ export default function HomeScreen() {
     try {
       const response = await fetch(`${API_URL}/restaurants`);
       const data = await response.json();
-      setRestaurants(data);
+      setRestaurants(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Home Fetch Failed", error);
+      setRestaurants([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const filtered = (restaurants || []).filter(r => 
-    r.name?.toLowerCase().includes(search.toLowerCase()) ||
-    r.cuisine_type?.toLowerCase().includes(search.toLowerCase())
-  );
+  const cities = ['All Cities', ...new Set(restaurants.map(r => r.city).filter(Boolean))];
+
+  const filtered = (restaurants || []).filter(r => {
+    const matchesSearch = r.name?.toLowerCase().includes(search.toLowerCase()) ||
+                         r.cuisine_type?.toLowerCase().includes(search.toLowerCase());
+    const matchesCity = selectedCity === 'All Cities' || r.city === selectedCity;
+    return matchesSearch && matchesCity;
+  });
 
   const renderRestaurant = ({ item }) => (
     <TouchableOpacity 
@@ -77,8 +84,8 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.welcomeText}>Delivering to</Text>
-          <TouchableOpacity style={styles.locationRow}>
-            <Text style={styles.locationText}>Current Location</Text>
+          <TouchableOpacity style={styles.locationRow} onPress={() => setShowCityModal(true)}>
+            <Text style={styles.locationText}>{selectedCity === 'All Cities' ? 'Select City' : selectedCity}</Text>
             <Ionicons name="chevron-down" size={16} color={Colors.greenFresh} />
           </TouchableOpacity>
         </View>
@@ -107,17 +114,46 @@ export default function HomeScreen() {
           contentContainerStyle={styles.list}
           ListHeaderComponent={() => (
             <View style={styles.listHeader}>
-              <Text style={styles.sectionTitle}>Featured Near You</Text>
+              <Text style={styles.sectionTitle}>Featured in {selectedCity}</Text>
             </View>
           )}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               <Ionicons name="restaurant-outline" size={60} color={Colors.grayBg} />
-              <Text style={styles.emptyText}>No restaurants found matching "{search}"</Text>
+              <Text style={styles.emptyText}>No restaurants found in {selectedCity}</Text>
             </View>
           }
         />
       )}
+
+      {/* City Selection Modal */}
+      <Modal visible={showCityModal} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select City</Text>
+              <TouchableOpacity onPress={() => setShowCityModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.black} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView>
+              {cities.map((city) => (
+                <TouchableOpacity 
+                  key={city} 
+                  style={[styles.cityOption, selectedCity === city && styles.citySelected]}
+                  onPress={() => {
+                    setSelectedCity(city);
+                    setShowCityModal(false);
+                  }}
+                >
+                  <Text style={[styles.cityText, selectedCity === city && styles.cityTextSelected]}>{city}</Text>
+                  {selectedCity === city && <Ionicons name="checkmark-circle" size={20} color={Colors.greenFresh} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -183,5 +219,21 @@ const styles = StyleSheet.create({
   deliveryText: { fontSize: 12, color: Colors.greenForest, fontWeight: '700' },
 
   emptyWrap: { alignItems: 'center', marginTop: 100, paddingHorizontal: 40 },
-  emptyText: { textAlign: 'center', marginTop: 15, color: Colors.gray, fontSize: 15 }
+  emptyText: { textAlign: 'center', marginTop: 15, color: Colors.gray, fontSize: 15 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: Colors.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, maxHeight: '70%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  modalTitle: { fontSize: 20, fontWeight: '900', color: Colors.black },
+  cityOption: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingVertical: 18, 
+    borderBottomWidth: 1, 
+    borderColor: Colors.grayBg 
+  },
+  citySelected: { marginHorizontal: -20, paddingHorizontal: 20 },
+  cityText: { fontSize: 16, color: Colors.black, fontWeight: '600' },
+  cityTextSelected: { color: Colors.greenFresh, fontWeight: '800' }
 });

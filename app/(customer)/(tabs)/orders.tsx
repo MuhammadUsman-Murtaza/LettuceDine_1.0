@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { API_URL, getSession } from '@/utils/api';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
+import { API_URL, getSession } from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
@@ -63,11 +68,12 @@ export default function OrdersScreen() {
         <Text style={styles.orderSummary}>Total Amount: <Text style={styles.amount}>Rs. {item.total_amount}</Text></Text>
         <Text style={styles.addressText} numberOfLines={1}>Delivered to: {item.street}</Text>
       </View>
-
-      <View style={styles.cardFooter}>
-        <Text style={styles.actionLink}>View Details & Review</Text>
-        <Ionicons name="chevron-forward" size={16} color={Colors.greenForest} />
-      </View>
+      { item.status.toUpperCase() === "DELIVERED" ?
+        <View style={styles.cardFooter}>
+          <Text style={styles.actionLink}>View Details & Review</Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.greenForest} />
+        </View> : <View></View>
+      }
     </TouchableOpacity>
   );
 
