@@ -411,24 +411,41 @@ app.get('/restaurants/:id/reviews', async (req, res) => {
 
 app.post('/reviews', async (req, res) => {
   const { customer_id, order_id, restaurant_id, rating, comment } = req.body;
+  const client = await pool.connect();
   try {
-    const result = await pool.query(`
+    await client.query('BEGIN');
+
+    // 1. Insert the review
+    const result = await client.query(`
       INSERT INTO reviews (customer_id, order_id, restaurant_id, rating, comment)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING review_id, rating, comment, review_date
     `, [customer_id, order_id, restaurant_id, rating, comment]);
 
-    // Update restaurant average
-    await pool.query(`
+    // 2. Update restaurant average rating
+    await client.query(`
       UPDATE restaurants
       SET rating = (SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE restaurant_id = $1)
       WHERE restaurant_id = $1
     `, [restaurant_id]);
 
+    // 3. Delete associated payments first (FK constraint)
+    await client.query(`DELETE FROM payments WHERE order_id = $1`, [order_id]);
+
+    // 4. Detach review from order so order can be deleted (FK constraint)
+    await client.query(`UPDATE reviews SET order_id = NULL WHERE order_id = $1`, [order_id]);
+
+    // 5. Delete the order (will cascade to order_items)
+    await client.query(`DELETE FROM orders WHERE order_id = $1`, [order_id]);
+
+    await client.query('COMMIT');
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Database error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -547,6 +564,7 @@ app.get('/customers/:id/orders', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         o.order_id,
+        o.restaurant_id,
         o.order_date,
         o.total_amount,
         o.status,

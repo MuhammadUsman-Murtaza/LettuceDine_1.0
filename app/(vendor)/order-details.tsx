@@ -45,11 +45,14 @@ export default function VendorOrderDetails() {
         body: JSON.stringify({ status: newStatus })
       });
       if (response.ok) {
-        Alert.alert("Status Updated", `Order is now ${newStatus}`);
+        Alert.alert("Status Updated", `Order is now ${newStatus.replace(/_/g, ' ')}`);
         fetchOrderDetails();
+      } else {
+        const errorData = await response.json();
+        Alert.alert("Update Failed", errorData.error || "Server rejected the status update");
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to update status");
+      Alert.alert("Network Error", "Could not connect to the server.");
     }
   };
 
@@ -89,7 +92,7 @@ export default function VendorOrderDetails() {
           <View style={styles.row}>
             <Text style={styles.orderId}>Order #{order.order_id}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>
-              <Text style={styles.statusText}>{order.status.toUpperCase()}</Text>
+              <Text style={styles.statusText}>{order.status.replace(/_/g, ' ').toUpperCase()}</Text>
             </View>
           </View>
           <Text style={styles.orderDate}>{new Date(order.order_date).toLocaleString()}</Text>
@@ -138,6 +141,24 @@ export default function VendorOrderDetails() {
 
         {/* Action Section */}
         <View style={styles.actionContainer}>
+          {['pending', 'preparing'].includes(order.status) && (
+            <TouchableOpacity 
+              style={[styles.primaryAction, { backgroundColor: Colors.danger, marginBottom: 12 }]} 
+              onPress={() => {
+                Alert.alert(
+                  "Cancel Order?",
+                  "Are you sure you want to cancel this order?",
+                  [
+                    { text: "No", style: "cancel" },
+                    { text: "Yes, Cancel", style: "destructive", onPress: () => updateStatus('cancelled') }
+                  ]
+                );
+              }}
+            >
+              <Text style={styles.actionText}>Cancel Order</Text>
+            </TouchableOpacity>
+          )}
+
           {order.status === 'pending' && (
             <TouchableOpacity style={styles.primaryAction} onPress={() => updateStatus('preparing')}>
               <Text style={styles.actionText}>Accept & Start Preparing</Text>

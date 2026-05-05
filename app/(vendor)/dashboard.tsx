@@ -105,11 +105,17 @@ export default function VendorDashboard() {
         body: JSON.stringify({ status: newStatus })
       });
       if (response.ok) {
-        Alert.alert("Status Updated", `Order #${orderId} is now ${newStatus}`);
-        if (restaurantId) fetchOrders(restaurantId);
+        Alert.alert("Status Updated", `Order #${orderId} is now ${newStatus.replace(/_/g, ' ')}`);
+        if (selectedRestaurant) {
+          fetchOrders(selectedRestaurant.restaurant_id);
+        }
+      } else {
+        const errorData = await response.json();
+        Alert.alert("Update Failed", errorData.error || "Server rejected the status update");
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to update status");
+      console.error("Status Update Error", error);
+      Alert.alert("Network Error", "Could not connect to the server. Please check your connection.");
     }
   };
 
@@ -140,7 +146,7 @@ export default function VendorDashboard() {
           <Text style={styles.orderTime}>{new Date(item.order_date).toLocaleTimeString()}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+          <Text style={styles.statusText}>{item.status.replace(/_/g, ' ').toUpperCase()}</Text>
         </View>
       </View>
 
@@ -153,14 +159,42 @@ export default function VendorDashboard() {
         <Text style={styles.orderTotal}>Rs. {item.total_amount}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {item.status === 'pending' && (
-            <TouchableOpacity style={styles.primaryBtn} onPress={(e) => { e.stopPropagation(); updateStatus(item.order_id, 'preparing'); }}>
-              <Text style={styles.btnText}>Accept</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity 
+                style={styles.dangerBtn} 
+                onPress={(e) => { 
+                  e.stopPropagation(); 
+                  Alert.alert("Cancel Order?", "Are you sure?", [
+                    { text: "No" },
+                    { text: "Yes", onPress: () => updateStatus(item.order_id, 'cancelled') }
+                  ]);
+                }}
+              >
+                <Text style={styles.btnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtn} onPress={(e) => { e.stopPropagation(); updateStatus(item.order_id, 'preparing'); }}>
+                <Text style={styles.btnText}>Accept</Text>
+              </TouchableOpacity>
+            </>
           )}
           {item.status === 'preparing' && (
-            <TouchableOpacity style={styles.primaryBtn} onPress={(e) => { e.stopPropagation(); updateStatus(item.order_id, 'out_for_delivery'); }}>
-              <Text style={styles.btnText}>Dispatch</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity 
+                style={styles.dangerBtn} 
+                onPress={(e) => { 
+                  e.stopPropagation(); 
+                  Alert.alert("Cancel Order?", "Are you sure?", [
+                    { text: "No" },
+                    { text: "Yes", onPress: () => updateStatus(item.order_id, 'cancelled') }
+                  ]);
+                }}
+              >
+                <Text style={styles.btnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.primaryBtn} onPress={(e) => { e.stopPropagation(); updateStatus(item.order_id, 'out_for_delivery'); }}>
+                <Text style={styles.btnText}>Dispatch</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
@@ -346,6 +380,7 @@ const styles = StyleSheet.create({
   },
   orderTotal: { fontSize: 16, fontWeight: '900', color: Colors.greenForest },
   primaryBtn: { backgroundColor: Colors.black, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 10 },
+  dangerBtn: { backgroundColor: Colors.danger, paddingHorizontal: 15, paddingVertical: 8, borderRadius: 10 },
   btnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
   emptyWrap: { alignItems: 'center', marginTop: 80, paddingHorizontal: 40 },
