@@ -3,7 +3,8 @@
 -- Combines our ERD + teammate's improvements
 -- ============================================================
 
--- 0. PostGIS removed (plain SQL mode)
+-- 0. PostGIS enabled
+CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- ============================================================
 -- ENUMs (adopted from teammate — DB-level type safety)
@@ -49,6 +50,7 @@ CREATE TABLE customer_addresses (
     province     VARCHAR(50),
     zip_code     VARCHAR(10)  NOT NULL,
     label        address_type DEFAULT 'home',
+    location     GEOGRAPHY(POINT, 4326),
 
     CONSTRAINT pk_customer_addresses  PRIMARY KEY (address_id),
     CONSTRAINT fk_addr_customer       FOREIGN KEY (customer_id)
@@ -108,6 +110,7 @@ CREATE TABLE restaurants (
     city           VARCHAR(100),
     province       VARCHAR(50),
     rating         NUMERIC(2, 1),
+    location       GEOGRAPHY(POINT, 4326),
     vendor_id      BIGINT       NOT NULL, -- Weak Dependency
 
     CONSTRAINT pk_restaurants               PRIMARY KEY (restaurant_id),
@@ -275,6 +278,8 @@ CREATE INDEX idx_orders_date        ON orders  (order_date);
 CREATE INDEX idx_reviews_restaurant ON reviews (restaurant_id);
 CREATE INDEX idx_menu_restaurant    ON menu    (restaurant_id);
 CREATE INDEX idx_payments_order     ON payments (order_id);
+CREATE INDEX idx_restaurants_location ON restaurants USING GIST (location);
+CREATE INDEX idx_addresses_location   ON customer_addresses USING GIST (location);
 
 -- ============================================================
 -- TRIGGER: Keep restaurants.rating in sync with reviews
