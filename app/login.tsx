@@ -8,7 +8,6 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/utils/api';
 import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Spacing';
 
 /**
  * LOGIN SCREEN (Clean Refactor)
@@ -125,7 +124,7 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={styles.footerText}>Don&apos;t have an account? </Text>
             <TouchableOpacity onPress={() => router.push('/register' as any)}>
               <Text style={styles.footerLink}>Register here</Text>
             </TouchableOpacity>

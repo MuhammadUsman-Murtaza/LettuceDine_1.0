@@ -38,5 +38,5 @@ export const getSession = async () => {
 };
 
 export const logout = async () => {
-  await AsyncStorage.multiRemove(['ROLE', 'CUSTOMER_ID', 'VENDOR_ID', 'RESTAURANT_ID']);
+  await AsyncStorage.multiRemove(['ROLE', 'CUSTOMER_ID', 'VENDOR_ID', 'RESTAURANT_ID', 'CART']);
 };

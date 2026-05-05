@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/utils/api';
+import { getCart, saveCart } from '@/utils/cart';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -44,16 +44,12 @@ export default function MenuScreen() {
   };
 
   const updateCartCount = async () => {
-    const cartStr = await AsyncStorage.getItem('CART');
-    if (cartStr) {
-      const cart = JSON.parse(cartStr);
-      setCartCount(cart.reduce((s, i) => s + i.quantity, 0));
-    }
+    const cart = await getCart();
+    setCartCount(cart.reduce((s: any, i: any) => s + i.quantity, 0));
   };
 
   const addToCart = async (item: any) => {
-    const cartStr = await AsyncStorage.getItem('CART');
-    let cart = cartStr ? JSON.parse(cartStr) : [];
+    const cart = await getCart();
 
     // Check if adding from a different restaurant
     if (cart.length > 0 && cart[0].restaurant_id !== parseInt(id as string)) {
@@ -71,8 +67,8 @@ export default function MenuScreen() {
   };
 
   const saveToCart = async (item: any, replace = false) => {
-    let cart = replace ? [] : JSON.parse(await AsyncStorage.getItem('CART') || '[]');
-    const existing = cart.find(i => i.menu_id === item.menu_id);
+    let cart = replace ? [] : await getCart();
+    const existing = cart.find((i: any) => i.menu_id === item.menu_id);
 
     if (existing) {
       existing.quantity += 1;
@@ -80,7 +76,7 @@ export default function MenuScreen() {
       cart.push({ ...item, quantity: 1, restaurant_id: parseInt(id as string) });
     }
 
-    await AsyncStorage.setItem('CART', JSON.stringify(cart));
+    await saveCart(cart);
     updateCartCount();
     Alert.alert("Added!", `${item.name} added to cart.`);
   };
