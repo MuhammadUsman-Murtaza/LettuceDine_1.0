@@ -58,6 +58,22 @@ app.post('/auth/login/vendor', async (req, res) => {
   }
 });
 
+// POST a new restaurant (for existing vendors)
+app.post('/restaurants', async (req, res) => {
+  const { name, cuisine_type, phone_number, city, street_address, province, vendor_id } = req.body;
+  try {
+    const result = await pool.query(`
+      INSERT INTO restaurants (name, cuisine_type, phone_number, city, street_address, province, vendor_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [name, cuisine_type, phone_number, city, street_address, province || 'Province', vendor_id]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // GET all restaurants owned by a specific vendor
 app.get('/vendors/:id/restaurants', async (req, res) => {
   try {
@@ -189,6 +205,39 @@ app.post('/restaurants/:id/menu', async (req, res) => {
       RETURNING *
     `, [req.params.id, food_item, beverages, desserts, starter, description, price]);
     res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.patch('/menu/:id', async (req, res) => {
+  const { food_item, beverages, desserts, starter, description, price } = req.body;
+  try {
+    const result = await pool.query(`
+      UPDATE menu 
+      SET food_item = COALESCE($1, food_item),
+          beverages = COALESCE($2, beverages),
+          desserts = COALESCE($3, desserts),
+          starter = COALESCE($4, starter),
+          description = COALESCE($5, description),
+          price = COALESCE($6, price)
+      WHERE menu_id = $7
+      RETURNING *
+    `, [food_item, beverages, desserts, starter, description, price, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/menu/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM menu WHERE menu_id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ message: 'Deleted successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
@@ -550,6 +599,7 @@ app.get('/orders/:id', async (req, res) => {
       SELECT
         o.order_id, o.order_date, o.total_amount, o.status,
         o.delivery_time, o.special_instructions, o.driver_contact_at_order,
+        c.first_name, c.last_name, c.email, c.phone_number,
         r.name        AS restaurant_name,
         ca.street, ca.city,
         p.payment_method, p.status AS payment_status,
@@ -557,7 +607,8 @@ app.get('/orders/:id', async (req, res) => {
         d.last_name   AS driver_last_name,
         d.vehicle_type
       FROM orders o
-      JOIN  restaurants r        ON r.restaurant_id  = o.restaurant_id
+      JOIN customers c           ON c.customer_id    = o.customer_id
+      JOIN restaurants r        ON r.restaurant_id  = o.restaurant_id
       LEFT JOIN customer_addresses ca ON ca.address_id    = o.delivery_address_id
       LEFT JOIN payments p        ON p.order_id       = o.order_id
       LEFT JOIN delivery_drivers d ON d.driver_id     = o.driver_id

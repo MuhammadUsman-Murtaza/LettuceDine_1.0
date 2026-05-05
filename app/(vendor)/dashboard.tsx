@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Platform, Alert, ScrollView
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { API_URL, getSession, logout } from '@/utils/api';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
+import { API_URL, getSession, logout } from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
@@ -15,9 +23,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
  * Live order management for restaurant owners.
  */
 export default function VendorDashboard() {
-  const [restaurantId, setRestaurantId] = useState<string | null>(null);
+  const [vendorId, setVendorId] = useState<string | null>(null);
+  const [restaurants, setRestaurants] = useState([]);
+  const [selectedRestaurant, setSelectedRestaurant] = useState<any>(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newRest, setNewRest] = useState({ name: '', cuisine_type: '', city: '', street_address: '' });
   const router = useRouter();
 
   useEffect(() => {
@@ -25,24 +37,63 @@ export default function VendorDashboard() {
   }, []);
 
   const initDashboard = async () => {
-    const { restaurantId: rid, role } = await getSession();
-    if (!rid || role !== 'vendor') {
+    const { vendorId: vid, role } = await getSession();
+    if (!vid || role !== 'vendor') {
       router.replace('/login');
       return;
     }
-    setRestaurantId(rid);
-    fetchOrders(rid);
+    setVendorId(vid);
+    fetchRestaurants(vid);
   };
 
-  const fetchOrders = async (id: string) => {
+  const fetchRestaurants = async (vid: string) => {
     try {
-      const response = await fetch(`${API_URL}/restaurants/${id}/orders`);
+      const response = await fetch(`${API_URL}/vendors/${vid}/restaurants`);
       const data = await response.json();
-      setOrders(data);
+      setRestaurants(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Dashboard Fetch Error", error);
+      console.error("Fetch Restaurants Error", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrders = async (rid: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_URL}/restaurants/${rid}/orders`);
+      const data = await response.json();
+      setOrders(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Dashboard Fetch Error", error);
+      setOrders([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddRestaurant = async () => {
+    if (!vendorId || !newRest.name || !newRest.cuisine_type || !newRest.city) {
+      Alert.alert("Missing Info", "Please fill in all required fields");
+      return;
+    }
+    try {
+      const response = await fetch(`${API_URL}/restaurants`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...newRest, vendor_id: vendorId })
+      });
+      
+      if (response.ok) {
+        Alert.alert("Success", "Restaurant added successfully!");
+        setShowAddModal(false);
+        setNewRest({ name: '', cuisine_type: '', city: '', street_address: '' });
+        fetchRestaurants(vendorId);
+      } else {
+        throw new Error("Failed to add restaurant");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to add restaurant");
     }
   };
 
@@ -62,8 +113,27 @@ export default function VendorDashboard() {
     }
   };
 
+  const renderRestaurant = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.restCard} 
+      onPress={() => {
+        setSelectedRestaurant(item);
+        fetchOrders(item.restaurant_id);
+      }}
+    >
+      <View>
+        <Text style={styles.restName}>{item.name}</Text>
+        <Text style={styles.restCuisine}>{item.cuisine_type} • {item.city}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={20} color={Colors.gray} />
+    </TouchableOpacity>
+  );
+
   const renderOrder = ({ item }) => (
-    <View style={styles.orderCard}>
+    <TouchableOpacity 
+      style={styles.orderCard} 
+      onPress={() => router.push(`/(vendor)/order-details?orderId=${item.order_id}`)}
+    >
       <View style={styles.cardHeader}>
         <View>
           <Text style={styles.orderId}>Order #{item.order_id}</Text>
@@ -78,32 +148,23 @@ export default function VendorDashboard() {
         <Ionicons name="person-outline" size={16} color={Colors.gray} />
         <Text style={styles.customerName}>{item.first_name} {item.last_name}</Text>
       </View>
-      <View style={styles.addressBox}>
-        <Ionicons name="location-outline" size={16} color={Colors.gray} />
-        <Text style={styles.addressText}>{item.street}, {item.city}</Text>
-      </View>
 
       <View style={styles.actionRow}>
         <Text style={styles.orderTotal}>Rs. {item.total_amount}</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {item.status === 'pending' && (
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => updateStatus(item.order_id, 'preparing')}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={(e) => { e.stopPropagation(); updateStatus(item.order_id, 'preparing'); }}>
               <Text style={styles.btnText}>Accept</Text>
             </TouchableOpacity>
           )}
           {item.status === 'preparing' && (
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => updateStatus(item.order_id, 'out_for_delivery')}>
+            <TouchableOpacity style={styles.primaryBtn} onPress={(e) => { e.stopPropagation(); updateStatus(item.order_id, 'out_for_delivery'); }}>
               <Text style={styles.btnText}>Dispatch</Text>
-            </TouchableOpacity>
-          )}
-          {item.status === 'out_for_delivery' && (
-            <TouchableOpacity style={styles.primaryBtn} onPress={() => updateStatus(item.order_id, 'delivered')}>
-              <Text style={styles.btnText}>Complete</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   const getStatusColor = (status: string) => {
@@ -120,37 +181,123 @@ export default function VendorDashboard() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerTitle}>Shop Manager</Text>
-          <Text style={styles.headerStatus}>Restaurant is Online 🟢</Text>
+          <Text style={styles.headerTitle}>
+            {selectedRestaurant ? selectedRestaurant.name : 'My Restaurants'}
+          </Text>
+          <Text style={styles.headerStatus}>
+            {selectedRestaurant ? 'Managing Orders' : `${restaurants.length} Active Outlets`}
+          </Text>
         </View>
-        <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await logout(); router.replace('/login'); }}>
-          <Ionicons name="log-out-outline" size={24} color={Colors.danger} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          {selectedRestaurant && (
+            <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedRestaurant(null)}>
+              <Ionicons name="arrow-back" size={24} color={Colors.black} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.logoutBtn} onPress={async () => { await logout(); router.replace('/login'); }}>
+            <Ionicons name="log-out-outline" size={24} color={Colors.danger} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      <View style={styles.tabContainer}>
-        <Text style={styles.tabTitle}>Incoming Orders</Text>
-        <TouchableOpacity onPress={() => { setLoading(true); if(restaurantId) fetchOrders(restaurantId); }}>
-          <Ionicons name="refresh" size={20} color={Colors.greenFresh} />
-        </TouchableOpacity>
-      </View>
+      {!selectedRestaurant && (
+        <View style={styles.tabContainer}>
+          <Text style={styles.tabTitle}>Select a Restaurant</Text>
+          <TouchableOpacity onPress={() => setShowAddModal(true)}>
+            <Ionicons name="add-circle" size={24} color={Colors.greenFresh} />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {selectedRestaurant && (
+        <View style={styles.tabContainer}>
+          <Text style={styles.tabTitle}>Incoming Orders</Text>
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            <TouchableOpacity onPress={() => router.push(`/(vendor)/menu-manager?restaurantId=${selectedRestaurant.restaurant_id}&restaurantName=${selectedRestaurant.name}`)}>
+              <Ionicons name="book-outline" size={22} color={Colors.black} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => fetchOrders(selectedRestaurant.restaurant_id)}>
+              <Ionicons name="refresh" size={22} color={Colors.greenFresh} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {loading ? (
         <ActivityIndicator size="large" color={Colors.greenFresh} style={{ marginTop: 50 }} />
       ) : (
         <FlatList
-          data={orders}
-          keyExtractor={(item) => item.order_id.toString()}
-          renderItem={renderOrder}
+          data={selectedRestaurant ? orders : restaurants}
+          keyExtractor={(item) => (selectedRestaurant ? item.order_id : item.restaurant_id).toString()}
+          renderItem={selectedRestaurant ? renderOrder : renderRestaurant}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <Ionicons name="clipboard-outline" size={60} color={Colors.grayBg} />
-              <Text style={styles.emptyText}>No orders right now.{"\n"}They'll show up here when customers order!</Text>
+              <Ionicons 
+                name={selectedRestaurant ? "clipboard-outline" : "restaurant-outline"} 
+                size={60} color={Colors.grayBg} 
+              />
+              <Text style={styles.emptyText}>
+                {selectedRestaurant 
+                  ? "No orders right now." 
+                  : "No restaurants yet.\nClick '+' to add your first one!"}
+              </Text>
             </View>
           }
         />
       )}
+
+      {/* Add Restaurant Modal */}
+      <Modal visible={showAddModal} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Outlet</Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.black} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Restaurant Name</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="e.g. Pizza Hut"
+                value={newRest.name}
+                onChangeText={(val) => setNewRest({...newRest, name: val})}
+              />
+
+              <Text style={styles.inputLabel}>Cuisine Type</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="e.g. Italian, Fast Food"
+                value={newRest.cuisine_type}
+                onChangeText={(val) => setNewRest({...newRest, cuisine_type: val})}
+              />
+
+              <Text style={styles.inputLabel}>City</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="e.g. Karachi"
+                value={newRest.city}
+                onChangeText={(val) => setNewRest({...newRest, city: val})}
+              />
+
+              <Text style={styles.inputLabel}>Street Address</Text>
+              <TextInput 
+                style={styles.input} 
+                placeholder="e.g. 123 Food Street"
+                value={newRest.street_address}
+                onChangeText={(val) => setNewRest({...newRest, street_address: val})}
+              />
+
+              <TouchableOpacity style={styles.saveBtn} onPress={handleAddRestaurant}>
+                <Text style={styles.saveBtnText}>Create Restaurant</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -202,5 +349,43 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontSize: 12, fontWeight: '800' },
 
   emptyWrap: { alignItems: 'center', marginTop: 80, paddingHorizontal: 40 },
-  emptyText: { textAlign: 'center', marginTop: 15, color: Colors.gray, fontSize: 14, lineHeight: 20 }
+  emptyText: { textAlign: 'center', marginTop: 15, color: Colors.gray, fontSize: 14, lineHeight: 20 },
+
+  restCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 15,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.grayBg,
+  },
+  restName: { fontSize: 18, fontWeight: '800', color: Colors.black },
+  restCuisine: { fontSize: 14, color: Colors.gray, marginTop: 4 },
+  backBtn: { padding: 5 },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { backgroundColor: Colors.white, borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25, maxHeight: '80%' },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 },
+  modalTitle: { fontSize: 22, fontWeight: '900', color: Colors.black },
+  inputLabel: { fontSize: 14, fontWeight: '700', color: Colors.gray, marginBottom: 8, marginTop: 15 },
+  input: { 
+    backgroundColor: Colors.offWhite, 
+    borderRadius: 12, 
+    padding: 15, 
+    fontSize: 16, 
+    borderWidth: 1, 
+    borderColor: Colors.grayBg 
+  },
+  saveBtn: { 
+    backgroundColor: Colors.greenFresh, 
+    padding: 18, 
+    borderRadius: 15, 
+    alignItems: 'center', 
+    marginTop: 30,
+    marginBottom: 20
+  },
+  saveBtnText: { color: Colors.white, fontSize: 16, fontWeight: '800' }
 });
