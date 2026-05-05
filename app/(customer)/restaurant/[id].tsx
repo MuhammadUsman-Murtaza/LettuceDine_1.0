@@ -82,13 +82,13 @@ export default function MenuScreen() {
 
     await AsyncStorage.setItem('CART', JSON.stringify(cart));
     updateCartCount();
-    Alert.alert("Added!", `${item.food_item || item.beverages} added to cart.`);
+    Alert.alert("Added!", `${item.name} added to cart.`);
   };
 
   const renderMenuItem = ({ item }) => (
     <View style={styles.menuCard}>
       <View style={styles.menuInfo}>
-        <Text style={styles.menuName}>{item.food_item || item.beverages || item.desserts || item.starter}</Text>
+        <Text style={styles.menuName}>{item.name}</Text>
         <Text style={styles.menuDesc} numberOfLines={2}>{item.description}</Text>
         <Text style={styles.menuPrice}>Rs. {item.price}</Text>
       </View>

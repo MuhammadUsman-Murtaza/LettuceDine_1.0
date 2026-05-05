@@ -179,10 +179,8 @@ app.get('/restaurants/:id/menu', async (req, res) => {
     const result = await pool.query(`
       SELECT
         menu_id,
-        food_item,
-        beverages,
-        desserts,
-        starter,
+        COALESCE(food_item, beverages, desserts, starter) AS name,
+        food_item, beverages, desserts, starter,
         description,
         price
       FROM menu
