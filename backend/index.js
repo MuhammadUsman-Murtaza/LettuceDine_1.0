@@ -520,13 +520,27 @@ app.get('/customers/:id/addresses', async (req, res) => {
 });
 
 app.post('/customers/:id/addresses', async (req, res) => {
-  const { street, city, province, zip_code, label } = req.body;
+  const { street, city, province, zip_code, label, lat, lon } = req.body;
   try {
-    const result = await pool.query(`
-      INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label)
-      VALUES ($1, $2, $3, $4, $5, $6)
+    let query = `
+      INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label, location)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING address_id, street, city, zip_code, label
-    `, [req.params.id, street, city, province, zip_code, label || 'home']);
+    `;
+    let location = null;
+    if (lat && lon) {
+      location = `SRID=4326;POINT(${lon} ${lat})`;
+    }
+    
+    const result = await pool.query(query, [
+      req.params.id, 
+      street, 
+      city, 
+      province, 
+      zip_code || '75500', 
+      label || 'home',
+      location
+    ]);
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);

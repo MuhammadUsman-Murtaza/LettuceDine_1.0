@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL, getSession } from '@/utils/api';
+import { getCart, clearCart } from '@/utils/cart';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -34,12 +34,10 @@ export default function CartScreen() {
   const loadCheckoutData = async () => {
     try {
       const { customerId } = await getSession();
-      const [cartStr, addrRes] = await Promise.all([
-        AsyncStorage.getItem('CART'),
+      const [cartData, addrRes] = await Promise.all([
+        getCart(),
         fetch(`${API_URL}/customers/${customerId}/addresses`)
       ]);
-
-      const cartData = cartStr ? JSON.parse(cartStr) : [];
       const addrData = await addrRes.json();
 
       setCart(cartData);
@@ -103,7 +101,7 @@ export default function CartScreen() {
         body: JSON.stringify(orderData)
       });
       if (res.ok) {
-        await AsyncStorage.removeItem('CART');
+        await clearCart();
         Alert.alert("Order Placed!", "Your food is on the way.");
         router.replace('/(customer)/(tabs)/orders');
       }

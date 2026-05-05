@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  TextInput, Modal, Alert, ActivityIndicator, Platform
+  TextInput, Modal, Alert, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -25,6 +25,7 @@ export default function ProfileScreen() {
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [province, setProvince] = useState('');
+  const [zipCode, setZipCode] = useState('');
   const [label, setLabel] = useState('home');
 
   useEffect(() => {
@@ -64,11 +65,17 @@ export default function ProfileScreen() {
       const res = await fetch(`${API_URL}/customers/${customerId}/addresses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ street, city, province, label })
+        body: JSON.stringify({ 
+          street, 
+          city, 
+          province, 
+          zip_code: zipCode, 
+          label 
+        })
       });
       if (res.ok) {
         setModalVisible(false);
-        setStreet(''); setCity(''); setProvince('');
+        setStreet(''); setCity(''); setProvince(''); setZipCode('');
         loadProfile(); // Refresh list
       }
     } catch (err) {
@@ -156,7 +163,10 @@ export default function ProfileScreen() {
             
             <TextInput style={styles.input} placeholder="Street Address" value={street} onChangeText={setStreet} />
             <TextInput style={styles.input} placeholder="City" value={city} onChangeText={setCity} />
-            <TextInput style={styles.input} placeholder="Province/Zip" value={province} onChangeText={setProvince} />
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Province" value={province} onChangeText={setProvince} />
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Zip Code" value={zipCode} onChangeText={setZipCode} keyboardType="numeric" />
+            </View>
             
             <View style={styles.labelRow}>
               {['home', 'work', 'other'].map(l => (
