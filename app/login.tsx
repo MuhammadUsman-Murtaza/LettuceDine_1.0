@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  SafeAreaView, Platform, KeyboardAvoidingView, ScrollView, Alert, ActivityIndicator
+  Platform, KeyboardAvoidingView, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/utils/api';
@@ -103,6 +104,8 @@ export default function LoginScreen() {
                 style={styles.input}
                 placeholder="Enter password"
                 secureTextEntry
+                autoCapitalize='none'
+                autoCorrect={false}
                 value={password}
                 onChangeText={setPassword}
               />

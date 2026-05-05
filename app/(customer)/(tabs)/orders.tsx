@@ -1,13 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { API_URL, getSession } from '@/utils/api';
 import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
+import { API_URL, getSession } from '@/utils/api';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 /**
@@ -45,17 +50,14 @@ export default function OrdersScreen() {
   };
 
   const renderOrder = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.orderCard}
-      onPress={() => router.push(`/(customer)/review?orderId=${item.order_id}&restaurantId=${item.restaurant_id}`)}
-    >
+    <View style={styles.orderCard}>
       <View style={styles.cardHeader}>
         <View style={styles.resInfo}>
           <Text style={styles.resName}>{item.restaurant_name}</Text>
           <Text style={styles.orderDate}>{new Date(item.order_date).toLocaleDateString()}</Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+          <Text style={styles.statusText}>{item.status.replace(/_/g, ' ').toUpperCase()}</Text>
         </View>
       </View>
       
@@ -63,12 +65,16 @@ export default function OrdersScreen() {
         <Text style={styles.orderSummary}>Total Amount: <Text style={styles.amount}>Rs. {item.total_amount}</Text></Text>
         <Text style={styles.addressText} numberOfLines={1}>Delivered to: {item.street}</Text>
       </View>
-
-      <View style={styles.cardFooter}>
-        <Text style={styles.actionLink}>View Details & Review</Text>
-        <Ionicons name="chevron-forward" size={16} color={Colors.greenForest} />
-      </View>
-    </TouchableOpacity>
+      { item.status.toUpperCase() === "DELIVERED" ?
+        <TouchableOpacity 
+          style={styles.cardFooter}
+          onPress={() => router.push(`/(customer)/review?orderId=${item.order_id}&restaurantId=${item.restaurant_id}`)}
+        >
+          <Text style={styles.actionLink}>Write a Review</Text>
+          <Ionicons name="chevron-forward" size={16} color={Colors.greenForest} />
+        </TouchableOpacity> : null
+      }
+    </View>
   );
 
   const getStatusColor = (status: string) => {
@@ -82,7 +88,7 @@ export default function OrdersScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Orders</Text>
       </View>

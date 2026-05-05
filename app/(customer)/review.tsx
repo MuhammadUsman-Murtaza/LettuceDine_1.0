@@ -27,6 +27,11 @@ export default function ReviewScreen() {
       return;
     }
 
+    if (!orderId || !restaurantId) {
+      Alert.alert("Error", "Missing order information. Please try again from the Orders tab.");
+      return;
+    }
+
     setSubmitting(true);
     const { customerId } = await getSession();
 
@@ -36,8 +41,8 @@ export default function ReviewScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customer_id: customerId,
-          order_id: orderId,
-          restaurant_id: restaurantId,
+          order_id: parseInt(orderId as string),
+          restaurant_id: parseInt(restaurantId as string),
           rating,
           comment
         })
@@ -46,9 +51,13 @@ export default function ReviewScreen() {
       if (res.ok) {
         Alert.alert("Thank You!", "Your review has been submitted.");
         router.replace('/(customer)/(tabs)/orders');
+      } else {
+        const errorData = await res.json();
+        Alert.alert("Submission Failed", errorData.error || "Could not save your review.");
       }
     } catch (err) {
-      Alert.alert("Error", "Could not submit review");
+      console.error("Review Submit Error", err);
+      Alert.alert("Network Error", "Could not connect to the server.");
     } finally {
       setSubmitting(false);
     }

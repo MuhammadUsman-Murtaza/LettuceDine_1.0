@@ -163,7 +163,7 @@ export default function CartScreen() {
           {cart.map((item, idx) => (
             <View key={idx} style={styles.itemRow}>
               <Text style={styles.itemQty}>{item.quantity}x</Text>
-              <Text style={styles.itemName}>{item.food_item || item.beverages || item.desserts}</Text>
+              <Text style={styles.itemName}>{item.name}</Text>
               <Text style={styles.itemPrice}>Rs. {item.price * item.quantity}</Text>
             </View>
           ))}

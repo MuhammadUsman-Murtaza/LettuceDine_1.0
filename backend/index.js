@@ -42,7 +42,7 @@ app.post('/auth/login/vendor', async (req, res) => {
   const { email, password } = req.body;
   try {
     const result = await pool.query(
-      `SELECT v.vendor_id, v.name, v.email, r.restaurant_id
+      `SELECT v.vendor_id, v.first_name, v.last_name, v.email, r.restaurant_id
        FROM vendors v
        LEFT JOIN restaurants r ON r.vendor_id = v.vendor_id
        WHERE v.email = $1 AND v.password_hash = $2`,
@@ -52,6 +52,22 @@ app.post('/auth/login/vendor', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
     res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// POST a new restaurant (for existing vendors)
+app.post('/restaurants', async (req, res) => {
+  const { name, cuisine_type, phone_number, city, street_address, province, vendor_id } = req.body;
+  try {
+    const result = await pool.query(`
+      INSERT INTO restaurants (name, cuisine_type, phone_number, city, street_address, province, vendor_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [name, cuisine_type, phone_number, city, street_address, province || 'Province', vendor_id]);
+    res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
@@ -74,17 +90,17 @@ app.get('/vendors/:id/restaurants', async (req, res) => {
 });
 
 app.post('/auth/register/vendor', async (req, res) => {
-  const { name, cuisine_type, phone_number, city, street_address, email, password_hash } = req.body;
+  const { first_name, last_name, cuisine_type, phone_number, city, street_address, email, password_hash } = req.body;
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     
     // 1. Create the Vendor Account
     const vendorRes = await client.query(`
-      INSERT INTO vendors (name, email, phone_number, password_hash)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO vendors (first_name, last_name, email, phone_number, password_hash)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING vendor_id
-    `, [name, email, phone_number, password_hash]);
+    `, [first_name, last_name, email, phone_number, password_hash]);
     
     const vendorId = vendorRes.rows[0].vendor_id;
 
@@ -127,8 +143,7 @@ app.get('/restaurants', async (req, res) => {
         affordability,
         street_address,
         city,
-        province,
-        ST_AsGeoJSON(location)::json AS coords
+        province
       FROM restaurants
       ORDER BY rating DESC NULLS LAST;
     `);
@@ -144,8 +159,7 @@ app.get('/restaurants/:id', async (req, res) => {
     const result = await pool.query(`
       SELECT
         restaurant_id, name, cuisine_type, rating, affordability,
-        street_address, city, province, phone_number,
-        ST_AsGeoJSON(location)::json AS coords
+        street_address, city, province, phone_number
       FROM restaurants
       WHERE restaurant_id = $1
     `, [req.params.id]);
@@ -165,10 +179,8 @@ app.get('/restaurants/:id/menu', async (req, res) => {
     const result = await pool.query(`
       SELECT
         menu_id,
-        food_item,
-        beverages,
-        desserts,
-        starter,
+        COALESCE(food_item, beverages, desserts, starter) AS name,
+        food_item, beverages, desserts, starter,
         description,
         price
       FROM menu
@@ -191,6 +203,39 @@ app.post('/restaurants/:id/menu', async (req, res) => {
       RETURNING *
     `, [req.params.id, food_item, beverages, desserts, starter, description, price]);
     res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.patch('/menu/:id', async (req, res) => {
+  const { food_item, beverages, desserts, starter, description, price } = req.body;
+  try {
+    const result = await pool.query(`
+      UPDATE menu 
+      SET food_item = COALESCE($1, food_item),
+          beverages = COALESCE($2, beverages),
+          desserts = COALESCE($3, desserts),
+          starter = COALESCE($4, starter),
+          description = COALESCE($5, description),
+          price = COALESCE($6, price)
+      WHERE menu_id = $7
+      RETURNING *
+    `, [food_item, beverages, desserts, starter, description, price, req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.delete('/menu/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM menu WHERE menu_id = $1 RETURNING *', [req.params.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ message: 'Deleted successfully' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Database error' });
@@ -236,8 +281,7 @@ app.post('/customers', async (req, res) => {
 app.get('/customers/:id/addresses', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT address_id, street, city, province, zip_code, label,
-             ST_AsGeoJSON(location)::json AS coords
+      SELECT address_id, street, city, province, zip_code, label
       FROM customer_addresses
       WHERE customer_id = $1
     `, [req.params.id]);
@@ -249,14 +293,11 @@ app.get('/customers/:id/addresses', async (req, res) => {
 });
 
 app.post('/customers/:id/addresses', async (req, res) => {
-  const { street, city, province, zip_code, label, latitude, longitude } = req.body;
+  const { street, city, province, zip_code, label } = req.body;
   try {
-    const locationVal = (latitude != null && longitude != null)
-      ? `ST_SetSRID(ST_MakePoint(${parseFloat(longitude)}, ${parseFloat(latitude)}), 4326)::geography`
-      : 'NULL';
     const result = await pool.query(
-      `INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label, location)
-       VALUES ($1, $2, $3, $4, $5, $6, ${locationVal})
+      `INSERT INTO customer_addresses (customer_id, street, city, province, zip_code, label)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING address_id, street, city, zip_code, label`,
       [req.params.id, street, city, province, zip_code, label || 'home']
     );
@@ -370,24 +411,41 @@ app.get('/restaurants/:id/reviews', async (req, res) => {
 
 app.post('/reviews', async (req, res) => {
   const { customer_id, order_id, restaurant_id, rating, comment } = req.body;
+  const client = await pool.connect();
   try {
-    const result = await pool.query(`
+    await client.query('BEGIN');
+
+    // 1. Insert the review
+    const result = await client.query(`
       INSERT INTO reviews (customer_id, order_id, restaurant_id, rating, comment)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING review_id, rating, comment, review_date
     `, [customer_id, order_id, restaurant_id, rating, comment]);
 
-    // Update restaurant average
-    await pool.query(`
+    // 2. Update restaurant average rating
+    await client.query(`
       UPDATE restaurants
       SET rating = (SELECT ROUND(AVG(rating)::numeric, 1) FROM reviews WHERE restaurant_id = $1)
       WHERE restaurant_id = $1
     `, [restaurant_id]);
 
+    // 3. Delete associated payments first (FK constraint)
+    await client.query(`DELETE FROM payments WHERE order_id = $1`, [order_id]);
+
+    // 4. Detach review from order so order can be deleted (FK constraint)
+    await client.query(`UPDATE reviews SET order_id = NULL WHERE order_id = $1`, [order_id]);
+
+    // 5. Delete the order (will cascade to order_items)
+    await client.query(`DELETE FROM orders WHERE order_id = $1`, [order_id]);
+
+    await client.query('COMMIT');
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error(err);
     res.status(500).json({ error: 'Database error' });
+  } finally {
+    client.release();
   }
 });
 
@@ -506,6 +564,7 @@ app.get('/customers/:id/orders', async (req, res) => {
     const result = await pool.query(`
       SELECT 
         o.order_id,
+        o.restaurant_id,
         o.order_date,
         o.total_amount,
         o.status,
@@ -525,9 +584,9 @@ app.get('/customers/:id/orders', async (req, res) => {
 });
 
 // ============================================================
-// ADMIN
+// ADMIN STATS
 // ============================================================
-app.get('/coupons/:code', async (req, res) => {
+app.get('/admin/stats', async (req, res) => {
   try {
     const [revRes, ordRes, custRes, vendRes] = await Promise.all([
       pool.query(`SELECT COALESCE(SUM(total_amount),0) AS total_revenue FROM orders WHERE status='delivered'`),
@@ -556,6 +615,7 @@ app.get('/orders/:id', async (req, res) => {
       SELECT
         o.order_id, o.order_date, o.total_amount, o.status,
         o.delivery_time, o.special_instructions, o.driver_contact_at_order,
+        c.first_name, c.last_name, c.email, c.phone_number,
         r.name        AS restaurant_name,
         ca.street, ca.city,
         p.payment_method, p.status AS payment_status,
@@ -563,7 +623,8 @@ app.get('/orders/:id', async (req, res) => {
         d.last_name   AS driver_last_name,
         d.vehicle_type
       FROM orders o
-      JOIN  restaurants r        ON r.restaurant_id  = o.restaurant_id
+      JOIN customers c           ON c.customer_id    = o.customer_id
+      JOIN restaurants r        ON r.restaurant_id  = o.restaurant_id
       LEFT JOIN customer_addresses ca ON ca.address_id    = o.delivery_address_id
       LEFT JOIN payments p        ON p.order_id       = o.order_id
       LEFT JOIN delivery_drivers d ON d.driver_id     = o.driver_id

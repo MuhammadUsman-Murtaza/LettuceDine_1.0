@@ -3,8 +3,7 @@
 -- Combines our ERD + teammate's improvements
 -- ============================================================
 
--- 0. Enable PostGIS
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- 0. PostGIS removed (plain SQL mode)
 
 -- ============================================================
 -- ENUMs (adopted from teammate — DB-level type safety)
@@ -37,10 +36,10 @@ CREATE TABLE customers (
 -- ============================================================
 -- 2. CUSTOMER_ADDRESSES
 -- Adopted: province, address_type ENUM, NOT NULL zip (teammate)
--- Kept:    PostGIS GEOGRAPHY location (ours — superior to POINT)
 -- Note:    Separate from restaurant address by design (teammate's
 --          valid architectural decision — restaurants embed their
 --          own address since they only ever have one)
+-- Note:    location column removed — PostGIS not used
 -- ============================================================
 CREATE TABLE customer_addresses (
     address_id   BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -50,7 +49,6 @@ CREATE TABLE customer_addresses (
     province     VARCHAR(50),
     zip_code     VARCHAR(10)  NOT NULL,
     label        address_type DEFAULT 'home',
-    location     GEOGRAPHY(POINT, 4326),
 
     CONSTRAINT pk_customer_addresses  PRIMARY KEY (address_id),
     CONSTRAINT fk_addr_customer       FOREIGN KEY (customer_id)
@@ -98,8 +96,7 @@ CREATE TABLE vendors (
 -- 4. RESTAURANTS
 -- Adopted: cuisine_type, phone_number, affordability SMALLINT,
 --          embedded address (teammate's valid design decision)
--- Kept:    PostGIS GEOGRAPHY directly on restaurants (our
---          improvement over teammate's plain POINT)
+-- Note:    location column removed — PostGIS not used
 -- ============================================================
 CREATE TABLE restaurants (
     restaurant_id  BIGINT GENERATED ALWAYS AS IDENTITY,
@@ -110,7 +107,6 @@ CREATE TABLE restaurants (
     street_address VARCHAR(255),
     city           VARCHAR(100),
     province       VARCHAR(50),
-    location       GEOGRAPHY(POINT, 4326),
     rating         NUMERIC(2, 1),
     vendor_id      BIGINT       NOT NULL, -- Weak Dependency
 
@@ -271,14 +267,8 @@ CREATE TABLE reviews (
     CONSTRAINT chk_review_rating    CHECK (rating >= 1 AND rating <= 5.0)
 );
 
--- ============================================================
--- 11. INDEXES
--- ============================================================
--- Spatial
-CREATE INDEX idx_restaurants_geo ON restaurants        USING GIST (location);
-CREATE INDEX idx_addresses_geo   ON customer_addresses USING GIST (location);
 
--- Query performance
+
 CREATE INDEX idx_orders_customer    ON orders  (customer_id);
 CREATE INDEX idx_orders_status      ON orders  (status);
 CREATE INDEX idx_orders_date        ON orders  (order_date);
@@ -287,10 +277,30 @@ CREATE INDEX idx_menu_restaurant    ON menu    (restaurant_id);
 CREATE INDEX idx_payments_order     ON payments (order_id);
 
 -- ============================================================
--- SEED DATA (Default Vendor Account)
+-- TRIGGER: Keep restaurants.rating in sync with reviews
+-- Fires after any INSERT / UPDATE / DELETE on reviews and
+-- recomputes the AVG rating for the affected restaurant.
 -- ============================================================
-INSERT INTO vendors (first_name, last_name, email, phone_number, password_hash)
-VALUES ('Admin', 'Vendor', 'vendor@lettuce.com', '+923001234567', 'password123');
+CREATE OR REPLACE FUNCTION fn_sync_restaurant_rating()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_restaurant_id BIGINT;
+BEGIN
+    -- For DELETE the affected row is in OLD; for INSERT/UPDATE it is in NEW
+    v_restaurant_id := COALESCE(NEW.restaurant_id, OLD.restaurant_id);
 
--- Link initial restaurants to this vendor
-UPDATE restaurants SET vendor_id = (SELECT vendor_id FROM vendors LIMIT 1);
+    UPDATE restaurants
+    SET rating = (
+        SELECT ROUND(AVG(r.rating)::NUMERIC, 2)
+        FROM reviews r
+        WHERE r.restaurant_id = v_restaurant_id
+    )
+    WHERE restaurant_id = v_restaurant_id;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sync_restaurant_rating
+AFTER INSERT OR UPDATE OR DELETE ON reviews
+FOR EACH ROW EXECUTE FUNCTION fn_sync_restaurant_rating();

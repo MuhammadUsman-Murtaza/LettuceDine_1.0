@@ -1,9 +1,9 @@
+import { Colors } from '@/constants/Colors';
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
@@ -13,10 +13,13 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.greenFresh,
         tabBarInactiveTintColor: Colors.grayLight,
-        tabBarStyle: [
-          styles.tabBar,
-          { height: 60 + insets.bottom, paddingBottom: 8 + insets.bottom }
-        ],
+        tabBarStyle: {
+          backgroundColor: Colors.white,
+          borderTopWidth: 1,
+          borderTopColor: '#F0F0F0', // Very light gray, almost invisible
+          height: 60 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
+        },
         headerShown: false,
       }}>
       <Tabs.Screen
@@ -29,7 +32,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="orders"
         options={{
           title: 'My Orders',
           tabBarIcon: ({ color, focused }) => (
