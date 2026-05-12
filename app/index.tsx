@@ -1,40 +1,10 @@
-import { useEffect } from 'react';
-import { View, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
-import { getSession } from '@/utils/api';
-import { Colors } from '@/constants/Colors';
+import { Redirect } from 'expo-router';
 
 /**
- * AUTO-REDIRECTOR (Clean Refactor)
- * Silently determines where to send the user based on their role and session.
+ * BOOT ENTRY
+ * Uses <Redirect> (not router.replace in useEffect) so Expo Router's
+ * navigator is guaranteed to be mounted before navigation occurs.
  */
-export default function EntryPoint() {
-  const router = useRouter();
-
-  useEffect(() => {
-    const checkSession = async () => {
-      const { role, isAuthenticated } = await getSession();
-
-      if (!isAuthenticated) {
-        // No session found, send to login
-        router.replace('/login');
-        return;
-      }
-
-      if (role === 'vendor') {
-        router.replace('/(vendor)/dashboard');
-      } else {
-        router.replace('/(customer)/(tabs)/');
-      }
-    };
-
-    // Small delay to ensure navigation is ready
-    setTimeout(checkSession, 100);
-  }, []);
-
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.offWhite }}>
-      <ActivityIndicator size="large" color={Colors.greenFresh} />
-    </View>
-  );
+export default function Boot() {
+  return <Redirect href="/splash" />;
 }

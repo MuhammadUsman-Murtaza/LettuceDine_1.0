@@ -1,5 +1,4 @@
 import { Stack } from 'expo-router';
-import { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 
 /**
@@ -9,7 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 export default function RootLayout() {
   return (
     <>
-      <StatusBar style="dark" />
+      <StatusBar style="auto" />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -17,6 +16,7 @@ export default function RootLayout() {
         }}
       >
         <Stack.Screen name="index" />
+        <Stack.Screen name="splash" />
         <Stack.Screen name="login" options={{ presentation: 'modal' }} />
         <Stack.Screen name="register" options={{ presentation: 'modal' }} />
         <Stack.Screen name="(customer)" />
