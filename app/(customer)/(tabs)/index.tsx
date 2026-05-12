@@ -12,6 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 
+import imageData from '@/assets/image.json';
+
 /**
  * HOME SCREEN (Clean Refactor)
  * Premium feed of restaurants with search and categories.
@@ -50,16 +52,20 @@ export default function HomeScreen() {
     return matchesSearch && matchesCity;
   });
 
-  const renderRestaurant = ({ item }) => (
-    <TouchableOpacity 
-      style={styles.card} 
-      onPress={() => router.push(`/(customer)/restaurant/${item.restaurant_id}`)}
-      activeOpacity={0.9}
-    >
-      <Image 
-        source={{ uri: `https://source.unsplash.com/800x450/?restaurant,food,${item.cuisine_type}` }} 
-        style={styles.cardImage} 
-      />
+  const renderRestaurant = ({ item }) => {
+    const cuisineImages = imageData.cuisine_type;
+    const imageUrl = cuisineImages[item.cuisine_type] || `https://source.unsplash.com/800x450/?restaurant,food,${item.cuisine_type}`;
+
+    return (
+      <TouchableOpacity 
+        style={styles.card} 
+        onPress={() => router.push(`/(customer)/restaurant/${item.restaurant_id}`)}
+        activeOpacity={0.9}
+      >
+        <Image 
+          source={{ uri: imageUrl }} 
+          style={styles.cardImage} 
+        />
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardTitle}>{item.name}</Text>
@@ -77,8 +83,8 @@ export default function HomeScreen() {
         </View>
       </View>
     </TouchableOpacity>
-  );
-
+    );
+  };
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
