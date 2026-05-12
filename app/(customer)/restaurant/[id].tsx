@@ -11,6 +11,8 @@ import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Spacing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import imageData from '@/assets/image.json';
+
 /**
  * MENU SCREEN (Clean Refactor)
  * Displays restaurant details and categorical menu items.
@@ -98,6 +100,9 @@ export default function MenuScreen() {
     <View style={styles.center}><ActivityIndicator size="large" color={Colors.greenFresh}/></View>
   );
 
+  const cuisineImages = imageData.cuisine_type;
+  const imageUrl = restaurant?.cuisine_type ? (cuisineImages[restaurant.cuisine_type] || `https://source.unsplash.com/1200x600/?restaurant,interior,${restaurant.cuisine_type}`) : 'https://source.unsplash.com/1200x600/?restaurant,interior';
+
   return (
     <View style={styles.container}>
       <ScrollView stickyHeaderIndices={[1]}>
@@ -105,7 +110,7 @@ export default function MenuScreen() {
         {/* Banner */}
         <View>
           <Image 
-            source={{ uri: `https://source.unsplash.com/1200x600/?restaurant,interior,${restaurant?.cuisine_type}` }} 
+            source={{ uri: imageUrl }} 
             style={styles.banner} 
           />
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>

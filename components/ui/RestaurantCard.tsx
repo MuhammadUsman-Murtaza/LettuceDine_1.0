@@ -7,17 +7,24 @@ import { IconRestaurant } from '@/components/icons/IconRestaurant';
 import { IconStar } from '@/components/icons/IconStar';
 import { IconLocationPin } from '@/components/icons/IconLocationPin';
 
+import { Image } from 'react-native';
+import imageData from '@/assets/image.json';
+
 interface RestaurantCardProps {
   restaurant: any; // Keep 'any' for now since we don't have the full restaurant type definition
   onPress: () => void;
 }
 
 export const RestaurantCard = ({ restaurant, onPress }: RestaurantCardProps) => {
+  const cuisineImages = imageData.cuisine_type;
+  const imageUrl = cuisineImages[restaurant.cuisine_type] || `https://source.unsplash.com/800x450/?restaurant,food,${restaurant.cuisine_type}`;
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.9}>
-      <View style={styles.imagePlaceholder}>
-        <IconRestaurant size={40} color={Colors.white} />
-      </View>
+      <Image 
+        source={{ uri: imageUrl }} 
+        style={styles.cardImage} 
+      />
       <View style={styles.content}>
         <View style={styles.headerRow}>
           <Text style={styles.title} numberOfLines={1}>{restaurant.name}</Text>
@@ -49,11 +56,10 @@ const styles = StyleSheet.create({
     ...Spacing.shadow.card,
     overflow: 'hidden',
   },
-  imagePlaceholder: {
-    height: 120,
-    backgroundColor: Colors.greenMint,
-    alignItems: 'center',
-    justifyContent: 'center',
+  cardImage: {
+    height: 150,
+    width: '100%',
+    backgroundColor: Colors.grayBg,
   },
   content: {
     padding: Spacing.large,
